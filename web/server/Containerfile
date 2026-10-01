@@ -1,0 +1,15 @@
+FROM python:3.9
+
+WORKDIR /app
+
+RUN --mount=type=bind,source=requirements.txt,target=/tmprequirements.txt \ pip install --requirement /tmp/requirements.txt
+
+# Update to copy from the src folder
+COPY /app .
+
+EXPOSE 5000
+
+ENV FLASK_APP=app.py
+ENV FLASK_RUN_HOST=0.0.0.0
+
+CMD ["flask","run"]
