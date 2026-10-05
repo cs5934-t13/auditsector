@@ -1,15 +1,14 @@
-FROM python:3.9
+FROM python
 
 WORKDIR /app
 
-RUN --mount=type=bind,source=requirements.txt,target=/tmprequirements.txt \ pip install --requirement /tmp/requirements.txt
-
-# Update to copy from the src folder
 COPY /app .
+RUN pip install --requirement requirements.txt
 
 EXPOSE 5000
 
-ENV FLASK_APP=app.py
+#placeholder app name
+ENV FLASK_APP=hello.py
 ENV FLASK_RUN_HOST=0.0.0.0
 
-CMD ["flask","run"]
+CMD ["flask","run","--cert=adhoc"]
