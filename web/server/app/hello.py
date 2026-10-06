@@ -7,6 +7,6 @@ app = Flask(__name__)
 def hello_world():
     return "<h1>Hello AuditSector!</h1>"
 
-@app.route("/api/test")
+@app.route("/test")
 def test_api():
-    return "Hello from the server"
+    return ["Hello from the server"]
