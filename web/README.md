@@ -35,4 +35,4 @@ podman run --pod web -d client
 ```
 podman run --pod web -d server
 ```
-7. Now that client and server are running, you can access the application in your browser at [http://localhost:8080].
+7. Now that client and server are running, you can access the application in your browser at <http://localhost:8080>.
