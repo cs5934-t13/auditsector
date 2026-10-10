@@ -33,6 +33,12 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/mysql
       name: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187-pvc
+    env:
+    - name: MYSQL_ROOT_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: mysql_root_password
+          key: mysql_password
   volumes:
   - name: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187-pvc
     persistentVolumeClaim:
