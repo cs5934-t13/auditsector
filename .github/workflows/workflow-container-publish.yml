@@ -46,9 +46,9 @@ jobs:
           image: "web-client"
           oci: true
           context: |
-            {{ env.ENV_BASE_IMG_DIR }}/web/client
+            ${{ env.ENV_BASE_IMG_DIR }}/web/client
           containerfiles: |
-            {{ env.ENV_BASE_IMG_DIR }}/web/client/Containerfile
+            ${{ env.ENV_BASE_IMG_DIR }}/web/client/Containerfile
 
       - name: Buildah Build Web Server
         id: build-server
