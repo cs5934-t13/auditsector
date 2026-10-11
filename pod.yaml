@@ -15,7 +15,7 @@ metadata:
   name: web
 spec:
   containers:
-  - args:
+  - args: # Web Client (Nginx)
     - nginx
     - -g
     - daemon off;
@@ -24,9 +24,9 @@ spec:
     ports:
     - containerPort: 80
       hostPort: 8080
-  - image: localhost/server:latest
+  - image: localhost/server:latest # Web Server (flask)
     name: server
-  - args:
+  - args: # Database (MySQL)
     - mysqld
     image: docker.io/library/mysql:latest
     name: db
@@ -39,6 +39,8 @@ spec:
         secretKeyRef:
           name: mysql_root_password
           key: mysql_password
+  - image: localhost/services:latest
+    name: services
   volumes:
   - name: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187-pvc
     persistentVolumeClaim:
