@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Install the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
@@ -46,9 +46,9 @@ jobs:
         with:
           image: "web-client"
           oci: true
-          context: ./web/client
+          context: {{ env.ENV_BASE_IMG_DIR }}/web/client
           containerfiles: |
-            ./web/client/Containerfile
+            {{ env.ENV_BASE_IMG_DIR }}/web/client/Containerfile
 
       - name: Buildah Build Web Server
         id: build-server
