@@ -45,19 +45,19 @@ jobs:
         with:
           cosign-release: 'v2.2.4'
       
-      - name: Install Podman  
-        uses: gacts/install-podman@v1.1.1
+#      - name: Install Podman  
+#        uses: gacts/install-podman@v1.1.1
+#
+#      - name: Build web/client
+#        run: podman build -t client ./web/client
+#
+#      - name: Build web/server
+#        run: podman build -t client ./web/client
+#
+#      - name: Build services
+#        run: podman build -t services ./services
 
-      - name: Build web/client
-        run: podman build -t client ./web/client
-
-      - name: Build web/server
-        run: podman build -t client ./web/client
-
-      - name: Build services
-        run: podman build -t services ./services
-
-      # Log in to the Container registryogin against  registry except on PR
+      # Log in to the Container registry
       # https://github.com/docker/login-action
       - name: Log into registry ${{ env.REGISTRY }}
         if: github.event_name != 'pull_request'
