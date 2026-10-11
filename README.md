@@ -8,3 +8,7 @@
     ├── client: Web Front-End
     └── server: Web Back-End
 ```
+
+## Development requirements
+
+- Podman
