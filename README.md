@@ -35,4 +35,4 @@ podman built -t services /services
 5. Update secrets.yaml.template with a MySQL Root Password encoded in base 64 and save as secrets.yaml
 6. Add the secrets to podman with `podman kube play secrets.yaml`
 7. Run the pod with `podman kube --replace pod.yaml`
-8. The app should be available at [[http://localhost:8080/]]
+8. The app should be available at http://localhost:8080/

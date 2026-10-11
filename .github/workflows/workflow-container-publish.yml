@@ -1,0 +1,112 @@
+name: "Build Containers"
+
+
+on:
+  push:
+    branches: [ "main" ]
+    # Publish semver tags as releases.
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    paths: 
+      - 'Containerfile'
+      - '**.yaml'
+      - 'web/client/app/**'
+      - 'web/server/app/**'
+      - 'services/**'
+      - 'data/**'
+env:
+  REGISTRY_USER: ${{ github.actor }}
+  REGISTRY_PASSWORD: ${{ github.token }}
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+
+jobs:
+  build-and-push:
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Install the cosign tool except on PR
+      # https://github.com/sigstore/cosign-installer
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 #v3.5.0
+        with:
+          cosign-release: 'v2.2.4'
+      
+      - name: Echo Files
+        run: "ls -R"
+
+
+      - name: Buildah Build Web Client
+        id: build-client
+        uses: redhat-actions/buildah-build@v3.1.0
+        with:
+          image: "web-client"
+          oci: true
+          context: ./web/client
+          containerfiles: Containerfile
+
+      - name: Buildah Build Web Server
+        id: build-server
+        uses: redhat-actions/buildah-build@v3.1.0
+        with:
+          image: "web-server"
+          oci: true
+          context: ./web/server
+          containerfiles: Containerfile
+
+      - name: Buildah Build Web Server
+        id: build-services
+        uses: redhat-actions/buildah-build@v3.1.0
+        with:
+          image: "services"
+          oci: true
+          context: ./services
+          containerfiles: Containerfile
+
+      - name: Log in to ghcr.io
+        uses: redhat-actions/podman-login@v1
+        with:
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+
+      - name: Push Client To Registry
+        id: push-client
+        uses: redhat-actions/push-to-registry@v3.0.0
+        with:
+          image: ${{ steps.build-client.outputs.image }}
+          tags: ${{ steps.build-client.outputs.server}}
+          registry: ${{ env.IMAGE_REGISTRY }}
+
+      - name: Print Client image url
+        run: echo "Client image pushed to ${{ steps.push-client.outputs.registry-paths }}"
+
+      - name: Push Server To Registry
+        id: push-server
+        uses: redhat-actions/push-to-registry@v3.0.0
+        with:
+          image: ${{ steps.build-server.outputs.image }}
+          tags: ${{ steps.build-server.outputs.server}}
+          registry: ${{ env.IMAGE_REGISTRY }}
+
+      - name: Print Server image url
+        run: echo "Server image pushed to ${{ steps.push-server.outputs.registry-paths }}"
+
+      - name: Push Services To Registry
+        id: push-services
+        uses: redhat-actions/push-to-registry@v3.0.0
+        with:
+          image: ${{ steps.build-services.outputs.image }}
+          tags: ${{ steps.build-services.outputs.server}}
+          registry: ${{ env.IMAGE_REGISTRY }}
+
+      - name: Print Services image url
+        run: echo "Services image pushed to ${{ steps.push-services.outputs.registry-paths }}"
