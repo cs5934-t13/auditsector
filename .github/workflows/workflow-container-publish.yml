@@ -41,7 +41,7 @@ jobs:
           cosign-release: 'v2.2.4'
       
       - name: Echo Files
-        run: "echo ls -R"
+        run: "ls -R"
 
 
       - name: Buildah Build Web Client
