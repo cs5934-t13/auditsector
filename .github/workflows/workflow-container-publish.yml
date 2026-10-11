@@ -48,7 +48,7 @@ jobs:
           oci: true
           context: ./web/client
           containerfiles: |
-            ./Containerfile
+            ./web/client/Containerfile
 
       - name: Buildah Build Web Server
         id: build-server
@@ -58,7 +58,7 @@ jobs:
           oci: true
           context: ./web/server
           containerfiles: |
-            ./Containerfile
+            ./web/server/Containerfile
 
       - name: Buildah Build Web Server
         id: build-services
@@ -68,7 +68,7 @@ jobs:
           oci: true
           context: ./services
           containerfiles: |
-            ./Containerfile
+            ./services/Containerfile
 
       - name: Log in to ghcr.io
         uses: redhat-actions/podman-login@v1
