@@ -1,5 +1,4 @@
-name: Build Containers
-
+name: "Build Containers""
 
 on:
   push:
@@ -46,7 +45,8 @@ jobs:
         with:
           image: "web-client"
           oci: true
-          context: {{ env.ENV_BASE_IMG_DIR }}/web/client
+          context: |
+            {{ env.ENV_BASE_IMG_DIR }}/web/client
           containerfiles: |
             {{ env.ENV_BASE_IMG_DIR }}/web/client/Containerfile
 
