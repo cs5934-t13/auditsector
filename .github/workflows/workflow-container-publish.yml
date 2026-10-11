@@ -1,5 +1,6 @@
 name: "Build Containers"
 
+
 on:
   push:
     branches: [ "main" ]
@@ -39,16 +40,18 @@ jobs:
         with:
           cosign-release: 'v2.2.4'
       
+      - name: Echo Files
+        run: "echo ls -R"
+
+
       - name: Buildah Build Web Client
         id: build-client
         uses: redhat-actions/buildah-build@v3.1.0
         with:
           image: "web-client"
           oci: true
-          context: |
-            ${{ env.ENV_BASE_IMG_DIR }}/web/client
-          containerfiles: |
-            ${{ env.ENV_BASE_IMG_DIR }}/web/client/Containerfile
+          context: ./web/client
+          containerfiles: Containerfile
 
       - name: Buildah Build Web Server
         id: build-server
@@ -57,8 +60,7 @@ jobs:
           image: "web-server"
           oci: true
           context: ./web/server
-          containerfiles: |
-            ./web/server/Containerfile
+          containerfiles: Containerfile
 
       - name: Buildah Build Web Server
         id: build-services
@@ -67,8 +69,7 @@ jobs:
           image: "services"
           oci: true
           context: ./services
-          containerfiles: |
-            ./services/Containerfile
+          containerfiles: Containerfile
 
       - name: Log in to ghcr.io
         uses: redhat-actions/podman-login@v1
