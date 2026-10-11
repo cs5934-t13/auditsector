@@ -49,13 +49,13 @@ jobs:
         uses: gacts/install-podman@v1.1.1
 
       - name: Build web/client
-        run: podman build -t client /web/client
+        run: podman build -t client ./web/client
 
       - name: Build web/server
-        run: podman build -t client /web/client
+        run: podman build -t client ./web/client
 
       - name: Build services
-        run: podman build -t services /services
+        run: podman build -t services ./services
 
       # Log in to the Container registryogin against  registry except on PR
       # https://github.com/docker/login-action
