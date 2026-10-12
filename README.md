@@ -22,15 +22,15 @@ You can install either Podman Desktop (recommended) or the Podman CLI by itself:
 1. `cd` into the `auditsector` project root.
 2. Build the client module 
 ```
-podman build -t client /web/client
+podman build -t client web/client
 ```
 3. Build the server module
 ```
-podman build -t server /web/server
+podman build -t server web/server
 ```
 4. Build the services module
 ```
-podman built -t services /services
+podman build -t services services
 ```
 5. Update secrets.yaml.template with a MySQL Root Password encoded in base 64 and save as secrets.yaml
 6. Add the secrets to podman with `podman kube play secrets.yaml`
