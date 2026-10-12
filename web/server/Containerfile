@@ -1,0 +1,14 @@
+FROM python
+
+WORKDIR /app
+
+COPY /app .
+RUN pip install --requirement requirements.txt
+
+EXPOSE 5000
+
+#placeholder app name
+ENV FLASK_APP=hello.py
+ENV FLASK_RUN_HOST=0.0.0.0
+
+CMD ["flask","run"]
