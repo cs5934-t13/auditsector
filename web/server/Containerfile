@@ -5,12 +5,13 @@ WORKDIR /app
 COPY /app .
 RUN pip install --requirement requirements.txt
 
-COPY data/db_init/*.sql ./sql/
+COPY /data/db_init/*.sql ./sql
 
 EXPOSE 5000
 
 #placeholder app name
 ENV FLASK_APP=hello.py
 ENV FLASK_RUN_HOST=0.0.0.0
+ENV PYTHONUNBUFFERED=1
 
 CMD ["flask","run"]
