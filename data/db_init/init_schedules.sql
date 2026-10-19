@@ -3,6 +3,8 @@ CREATE TABLE IF NOT EXISTS schedules (
     created_by      BIGINT UNSIGNED NOT NULL,
     source_link     VARCHAR(255) NOT NULL,
     scan_frequency  ENUM('HOURLY', 'DAILY', 'WEEKLY', 'MONTHLY', 'ARCHIVE') NOT NULL DEFAULT 'WEEKLY',
+    last_run_at     DATETIME NULL,
+    last_run_status ENUM('SUCCESS', 'ERROR'),
     next_run_at     DATETIME NULL,
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
