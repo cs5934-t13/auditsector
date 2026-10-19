@@ -5,8 +5,6 @@ WORKDIR /app
 COPY /app .
 RUN pip install --requirement requirements.txt
 
-COPY /data/db_init/*.sql ./sql
-
 EXPOSE 5000
 
 #placeholder app name
