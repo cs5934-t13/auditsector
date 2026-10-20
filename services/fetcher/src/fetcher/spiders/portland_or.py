@@ -4,7 +4,7 @@ import scrapy
 class PortlandORSpider(scrapy.Spider):
     name = "portland_or"
     start_urls = [
-        "https://efiles.portlandoregon.gov/record?q=recContainerEx%3a3753929&sortBy=recCreatedOn-&nb=true&pageSize=15&start=2"
+        "https://efiles.portlandoregon.gov/record?q=recContainerEx%3a3753929&sortBy=recCreatedOn-&nb=true&pageSize=15&start=1"
     ]
     custom_settings = {"ITEM_PIPELINES": {"fetcher.pipelines.PdfPipeline": 1}, "FILES_STORE": "./files/portland_or"}
 
