@@ -5,9 +5,16 @@
 
 
 # useful for handling different item types with a single interface
-from itemadapter import ItemAdapter
+from scrapy.pipelines.files import FilesPipeline
 
 
 class FetcherPipeline:
     def process_item(self, item):
         return item
+
+
+class PdfPipeline(FilesPipeline):
+    def file_path(self, request, response=None, info=None, *, item=None):
+        # Currently hardcoded to Portlant, OR urls
+        filename = request.url.split("/")[-3]
+        return f"{filename}.pdf"
