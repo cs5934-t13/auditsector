@@ -27,6 +27,12 @@ spec:
           hostPort: 8080
     - image: localhost/server:latest # Web Server (flask)
       name: server
+      env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql_root_password
+              key: mysql_password
     - args: # Database (MySQL)
         - mysqld
       image: docker.io/library/mysql:latest
