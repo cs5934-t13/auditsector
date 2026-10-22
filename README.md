@@ -32,7 +32,11 @@ podman build -t server web/server
 ```
 podman build -t services services
 ```
-5. Update secrets.yaml.template with a MySQL Root Password encoded in base 64 and save as secrets.yaml
+5. Build the data module
+```
+podman build -t data data
+```
+6. Update secrets.yaml.template with a MySQL Root Password encoded in base 64 and save as secrets.yaml
    - To convert your password to base 64, you can use `echo mypassword | base64 -i -`
 7. Add the secrets to podman with `podman kube play secrets.yaml`
 8. Run the pod with `podman kube play --replace pod.yaml`

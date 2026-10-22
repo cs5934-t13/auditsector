@@ -49,7 +49,7 @@ spec:
     - image: localhost/services:latest
       name: services
     - image: localhost/db-init:latest
-      name: db-init
+      name: data
       env:
         - name: MYSQL_ROOT_PASSWORD
           valueFrom:
