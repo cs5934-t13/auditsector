@@ -44,3 +44,6 @@ def init_db(sql_dir):
                 while cur.nextset():
                     pass
         conn.commit()
+
+if __name__ == "__main__":
+    init_db("/app/sql")
