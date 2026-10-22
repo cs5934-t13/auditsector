@@ -5,7 +5,7 @@ ENV PYTHONUNBUFFERED=1
 COPY app/requirements.txt .
 RUN pip install --no-cache-dir --requirement requirements.txt
 
-COPY db_init/db_init.py .
-COPY db_init/*.sql ./sql/
+COPY scripts/db_init.py .
+COPY scripts/*.sql ./sql/
 
 CMD ["python", "db_init.py"]

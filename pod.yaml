@@ -42,7 +42,7 @@ spec:
               key: mysql_password
     - image: localhost/services:latest
       name: services
-    - image: localhost/data:latest
+    - image: localhost/db-init:latest
       name: db-init
       env:
         - name: MYSQL_ROOT_PASSWORD
