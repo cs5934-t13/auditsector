@@ -71,6 +71,15 @@ jobs:
           context: ./services
           containerfiles: Containerfile
 
+      - name: Buildah Build DB
+        id: build-db
+        uses: redhat-actions/buildah-build@v3.1.0
+        with:
+          image: "data"
+          oci: true
+          context: ./data
+          containerfiles: Containerfile
+
       - name: Log in to ghcr.io
         uses: redhat-actions/podman-login@v1
         with:
