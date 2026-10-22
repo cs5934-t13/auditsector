@@ -14,6 +14,7 @@ metadata:
     app: web
   name: web
 spec:
+  restartPolicy: OnFailure
   containers:
     - args: # Web Client (Nginx)
         - nginx
@@ -47,6 +48,15 @@ spec:
               key: mysql_password
     - image: localhost/services:latest
       name: services
+    - image: localhost/db-init:latest
+      name: db-init
+      env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql_root_password
+              key: mysql_password
+
   volumes:
     - name: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187-pvc
       persistentVolumeClaim:
