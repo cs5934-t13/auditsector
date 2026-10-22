@@ -1,6 +1,3 @@
-from db_init import init_db
-init_db(sql_dir="/app/sql")
-
 from flask import Flask
 
 app = Flask(__name__)
