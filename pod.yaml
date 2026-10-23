@@ -14,35 +14,50 @@ metadata:
     app: web
   name: web
 spec:
+  restartPolicy: OnFailure
   containers:
-  - args: # Web Client (Nginx)
-    - nginx
-    - -g
-    - daemon off;
-    image: localhost/client:latest
-    name: client
-    ports:
-    - containerPort: 80
-      hostPort: 8080
-  - image: localhost/server:latest # Web Server (flask)
-    name: server
-  - args: # Database (MySQL)
-    - mysqld
-    image: docker.io/library/mysql:latest
-    name: db
-    volumeMounts:
-    - mountPath: /var/lib/mysql
-      name: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187-pvc
-    env:
-    - name: MYSQL_ROOT_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: mysql_root_password
-          key: mysql_password
-  - image: localhost/services:latest
-    name: services
-  volumes:
-  - name: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187-pvc
-    persistentVolumeClaim:
-      claimName: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187
+    - args: # Web Client (Nginx)
+        - nginx
+        - -g
+        - daemon off;
+      image: localhost/client:latest
+      name: client
+      ports:
+        - containerPort: 80
+          hostPort: 8080
+    - image: localhost/server:latest # Web Server (flask)
+      name: server
+      env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql_root_password
+              key: mysql_password
+    - args: # Database (MySQL)
+        - mysqld
+      image: docker.io/library/mysql:latest
+      name: db
+      volumeMounts:
+        - mountPath: /var/lib/mysql
+          name: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187-pvc
+      env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql_root_password
+              key: mysql_password
+    - image: localhost/services:latest
+      name: services
+    - image: localhost/db-init:latest
+      name: data
+      env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql_root_password
+              key: mysql_password
 
+  volumes:
+    - name: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187-pvc
+      persistentVolumeClaim:
+        claimName: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187
