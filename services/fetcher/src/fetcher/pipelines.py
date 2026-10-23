@@ -15,6 +15,6 @@ class FetcherPipeline:
 
 class PdfPipeline(FilesPipeline):
     def file_path(self, request, response=None, info=None, *, item=None):
-        # Currently hardcoded to Portlant, OR urls
+        # Currently hard-coded to Portland, OR URLs
         filename = request.url.split("/")[-3]
         return f"{filename}.pdf"

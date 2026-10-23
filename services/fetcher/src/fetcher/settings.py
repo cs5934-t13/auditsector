@@ -58,10 +58,10 @@ DOWNLOAD_DELAY = 1
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-# ITEM_PIPELINES = {
-#     "fetcher.pipelines.FetcherPipeline": 300,
-#     "scrapy.pipelines.files.FilesPipeline": 1,
-# }
+ITEM_PIPELINES = {
+    #     "fetcher.pipelines.FetcherPipeline": 300,
+    "scrapy.pipelines.files.FilesPipeline": 1,
+}
 FILES_STORE = "./files"
 
 # Enable and configure the AutoThrottle extension (disabled by default)
