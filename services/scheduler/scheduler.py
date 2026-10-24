@@ -34,42 +34,6 @@ def get_due_schedules(
         if is_due(schedule.next_run_at, now)
     ]
 
-"""Timing logic for scheduled audit-source scans."""
-
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from collections.abc import Callable
-
-
-@dataclass
-class Schedule:
-    """An audit source and its scan schedule."""
-
-    schedule_id: int
-    source_link: str
-    scan_frequency: str
-    next_run_at: datetime | None
-
-
-def is_due(next_run_at: datetime | None, now: datetime) -> bool:
-    """Return whether a schedule with a known run time is due."""
-    if next_run_at is None:
-        return False
-
-    return next_run_at <= now
-
-
-def get_due_schedules(
-    schedules: list[Schedule],
-    now: datetime,
-) -> list[Schedule]:
-    """Return schedules whose next run time has arrived or passed."""
-    return [
-        schedule
-        for schedule in schedules
-        if is_due(schedule.next_run_at, now)
-    ]
-
 def trigger_due_scans(
     schedules: list[Schedule],
     now: datetime,
