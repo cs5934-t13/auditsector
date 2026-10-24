@@ -3,7 +3,9 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from collections.abc import Callable
+import logging
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class Schedule:
@@ -39,15 +41,23 @@ def trigger_due_scans(
     now: datetime,
     trigger_scan: Callable[[Schedule], None],
 ) -> None:
-    """Trigger due scans and advance their schedules."""
+    """Trigger due scans, keeping failed schedules due."""
     for schedule in get_due_schedules(schedules, now):
-        next_run = calculate_next_run(
-            schedule.next_run_at,
-            now,
-            schedule.scan_frequency,
-        )
+        try:
+            next_run = calculate_next_run(
+                schedule.next_run_at,
+                now,
+                schedule.scan_frequency,
+            )
 
-        trigger_scan(schedule)
+            trigger_scan(schedule)
+        except Exception:
+            logger.exception(
+                "Failed to trigger schedule %s",
+                schedule.schedule_id,
+            )
+            continue
+
         schedule.next_run_at = next_run
 
 def calculate_next_run(
