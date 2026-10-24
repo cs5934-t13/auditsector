@@ -5,9 +5,9 @@ from pathlib import Path
 import pymysql
 from pymysql.constants import CLIENT
 
-HOST = os.environ.get("DB_HOST", "127.0.0.1")
+HOST = os.environ.get("DB_HOST", "localhost")
 DB_NAME = os.environ.get("DB_NAME", "auditsector")
-SQL_FILES = ["init_users.sql", "init_schedules.sql", "init_audits.sql"]
+SQL_FILES = ["init_users.sql", "init_schedules.sql", "init_audits.sql", "init_fetches.sql"]
 
 
 def connect_db(database=None, retries=30, delay=2):
@@ -46,4 +46,4 @@ def init_db(sql_dir):
         conn.commit()
 
 if __name__ == "__main__":
-    init_db("/app/sql")
+    init_db("/sql")
