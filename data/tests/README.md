@@ -8,9 +8,10 @@ To ensure your database is properly running in the web pod, you can run the foll
 
 You can then run the following command to automatically execute tests:
 ```
-podman run --rm --pod web \
+podman run --rm --restart=no --pod web \
   -e MYSQL_ROOT_PASSWORD="$(podman exec web-db printenv MYSQL_ROOT_PASSWORD)" \
   -v ./data/tests:/app:Z \
+  -v ./data/authentication:/authentication:Z \
   localhost/db-test:latest
 ```
 <br>

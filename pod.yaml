@@ -14,7 +14,7 @@ metadata:
     app: web
   name: web
 spec:
-  restartPolicy: OnFailure
+  restartPolicy: Never
   containers:
     - args: # Web Client (Nginx)
         - nginx
@@ -56,6 +56,8 @@ spec:
             secretKeyRef:
               name: mysql_root_password
               key: mysql_password
+        - name: LOAD_DUMMY_DATA
+          value: "true"
 
   volumes:
     - name: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187-pvc
