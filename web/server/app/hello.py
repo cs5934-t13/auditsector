@@ -7,6 +7,8 @@ import os
 
 app = Flask(__name__)
 
+VALID_FREQUENCIES = {"HOURLY", "DAILY", "WEEKLY", "MONTHLY"}
+
 def get_db_connection():
     return pymysql.connect(
         host="127.0.0.1",
@@ -65,8 +67,6 @@ def login_user():
         "reason": "user is authorized"
     }
 
-
-    VALID_FREQUENCIES = {"HOURLY", "DAILY", "WEEKLY", "MONTHLY"}
 
 
 def valid_url(url):
