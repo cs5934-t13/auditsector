@@ -2,7 +2,7 @@
 
 from services.scheduler.scheduler import Schedule
 import os
-from datetime import timezone
+from datetime import timezone,datetime
 
 import pymysql
 
@@ -41,3 +41,32 @@ def load_schedules(connection) -> list[Schedule]:
         )
         for row in rows
     ]
+
+def save_next_run(
+    connection,
+    schedule_id: int,
+    next_run_at: datetime,
+) -> None:
+    """Save an aware datetime as a UTC MySQL DATETIME."""
+    if next_run_at.utcoffset() is None:
+        raise ValueError("next_run_at must include a timezone")
+
+    database_time = next_run_at.astimezone(timezone.utc).replace(
+        tzinfo=None
+    )
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE schedules
+                SET next_run_at = %s
+                WHERE schedule_id = %s
+                """,
+                (database_time, schedule_id),
+            )
+
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise

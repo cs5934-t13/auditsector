@@ -40,8 +40,9 @@ def trigger_due_scans(
     schedules: list[Schedule],
     now: datetime,
     trigger_scan: Callable[[Schedule], None],
+    save_next_run: Callable[[int, datetime], None] | None = None,
 ) -> None:
-    """Trigger due scans, keeping failed schedules due."""
+    """Trigger due scans and optionally persist their next run times."""
     for schedule in get_due_schedules(schedules, now):
         try:
             next_run = calculate_next_run(
@@ -51,9 +52,13 @@ def trigger_due_scans(
             )
 
             trigger_scan(schedule)
+
+            if save_next_run is not None:
+                save_next_run(schedule.schedule_id, next_run)
+
         except Exception:
             logger.exception(
-                "Failed to trigger schedule %s",
+                "Failed to process schedule %s",
                 schedule.schedule_id,
             )
             continue
