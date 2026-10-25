@@ -9,7 +9,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import Link from '@mui/material/Link';
-import Paper from '@mui/material/Paper';
+import SectionPanel from './SectionPanel';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -76,8 +76,7 @@ export default function LoginCard() {
   };
 
   return (
-    <Paper
-      variant="outlined"
+    <SectionPanel
       component="section"
       aria-labelledby="login-heading"
       sx={{ p: { xs: 3, md: 4 }, maxWidth: 440, width: '100%' }}
@@ -200,6 +199,6 @@ export default function LoginCard() {
           </Button>
         </DialogActions>
       </Dialog>
-    </Paper>
+    </SectionPanel>
   );
 }

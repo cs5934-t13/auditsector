@@ -1,14 +1,18 @@
-import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Container from '@mui/material/Container';
-import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
+import FeatureCard from '../components/FeatureCard';
+import FeatureGrid from '../components/FeatureGrid';
+import PageSection from '../components/PageSection';
+import Prose from '../components/Prose';
+import SectionPanel from '../components/SectionPanel';
+import { PAGE_HEADING_SX } from '../content/layout';
 import { useAuth } from '../auth/AuthContext';
 
 const features = [
@@ -32,21 +36,16 @@ const features = [
   },
 ];
 
-const sectionSx = {
-  scrollMarginTop: { xs: '72px', md: '136px' },
-} as const;
-
 /** Authenticated dashboard. Only reachable once a user has signed in. */
 export default function DashboardPage() {
   const { user } = useAuth();
 
   return (
     <Container maxWidth="lg">
-      <Box
-        component="section"
+      <PageSection
         id="home"
-        aria-labelledby="home-heading"
-        sx={{ py: { xs: 6, md: 9 }, ...sectionSx }}
+        labelledBy="home-heading"
+        spacing="both"
       >
         <Stack spacing={3} sx={{ maxWidth: 760 }}>
           <Chip
@@ -61,10 +60,7 @@ export default function DashboardPage() {
             id="home-heading"
             variant="h3"
             component="h1"
-            sx={{
-              fontSize: { xs: '2rem', sm: '2.75rem', md: '3.25rem' },
-              lineHeight: 1.12,
-            }}
+            sx={PAGE_HEADING_SX}
           >
             Welcome back{user ? `, ${user.username}` : ''}.
           </Typography>
@@ -92,14 +88,9 @@ export default function DashboardPage() {
             </Button>
           </Stack>
         </Stack>
-      </Box>
+      </PageSection>
 
-      <Box
-        component="section"
-        id="audit-reports"
-        aria-labelledby="audit-reports-heading"
-        sx={{ pb: { xs: 6, md: 9 }, ...sectionSx }}
-      >
+      <PageSection id="audit-reports" labelledBy="audit-reports-heading">
         <Typography
           id="audit-reports-heading"
           variant="h4"
@@ -108,39 +99,20 @@ export default function DashboardPage() {
         >
           Audit Reports
         </Typography>
-        <Box
-          sx={{
-            display: 'grid',
-            gap: 3,
-            gridTemplateColumns: {
-              xs: '1fr',
-              sm: 'repeat(2, 1fr)',
-              md: 'repeat(3, 1fr)',
-            },
-          }}
-        >
+        <FeatureGrid>
           {features.map((feature) => (
-            <Paper
+            <FeatureCard
               key={feature.title}
-              variant="outlined"
-              sx={{ p: 3, height: '100%' }}
-            >
-              {feature.icon}
-              <Typography variant="h6" component="h3" sx={{ mt: 1.5, mb: 1 }}>
-                {feature.title}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {feature.description}
-              </Typography>
-            </Paper>
+              icon={feature.icon}
+              title={feature.title}
+              description={feature.description}
+            />
           ))}
-        </Box>
+        </FeatureGrid>
 
-        <Paper
-          variant="outlined"
+        <SectionPanel
           sx={{
             mt: 3,
-            p: { xs: 3, md: 5 },
             borderStyle: 'dashed',
             textAlign: 'center',
           }}
@@ -149,16 +121,11 @@ export default function DashboardPage() {
             The paginated report list will appear here once{' '}
             <code>GET /audits/recent</code> is available.
           </Typography>
-        </Paper>
-      </Box>
+        </SectionPanel>
+      </PageSection>
 
-      <Box
-        component="section"
-        id="categories"
-        aria-labelledby="categories-heading"
-        sx={{ pb: { xs: 6, md: 9 }, ...sectionSx }}
-      >
-        <Paper variant="outlined" sx={{ p: { xs: 3, md: 5 } }}>
+      <PageSection id="categories" labelledBy="categories-heading">
+        <SectionPanel>
           <Typography
             id="categories-heading"
             variant="h4"
@@ -167,25 +134,16 @@ export default function DashboardPage() {
           >
             Categories
           </Typography>
-          <Typography
-            variant="body1"
-            color="text.secondary"
-            sx={{ maxWidth: 720 }}
-          >
+          <Prose>
             Group audit reports by category so related findings stay together.
             Categories will be used to filter reports and to follow the areas
             your organization cares about most.
-          </Typography>
-        </Paper>
-      </Box>
+          </Prose>
+        </SectionPanel>
+      </PageSection>
 
-      <Box
-        component="section"
-        id="settings"
-        aria-labelledby="settings-heading"
-        sx={{ pb: { xs: 6, md: 9 }, ...sectionSx }}
-      >
-        <Paper variant="outlined" sx={{ p: { xs: 3, md: 5 } }}>
+      <PageSection id="settings" labelledBy="settings-heading">
+        <SectionPanel>
           <Typography
             id="settings-heading"
             variant="h4"
@@ -194,16 +152,12 @@ export default function DashboardPage() {
           >
             Settings
           </Typography>
-          <Typography
-            variant="body1"
-            color="text.secondary"
-            sx={{ maxWidth: 720 }}
-          >
+          <Prose>
             Organization details, scan schedules, and account preferences will
             be managed here.
-          </Typography>
-        </Paper>
-      </Box>
+          </Prose>
+        </SectionPanel>
+      </PageSection>
     </Container>
   );
 }

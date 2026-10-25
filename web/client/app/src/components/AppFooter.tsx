@@ -5,6 +5,12 @@ import Link from '@mui/material/Link';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
+import {
+  FOOTER_BRAND_WIDTH,
+  FOOTER_COLUMNS,
+  FOOTER_GAP,
+  FOOTER_PADDING,
+} from '../content/layout';
 import { navFor } from '../content/navigation';
 import { useAuth } from '../auth/AuthContext';
 
@@ -37,16 +43,12 @@ export default function AppFooter() {
         bgcolor: 'background.paper',
       }}
     >
-      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
+      <Container maxWidth="lg" sx={{ py: FOOTER_PADDING }}>
         <Box
           sx={{
             display: 'grid',
-            gap: { xs: 3, md: 6 },
-            gridTemplateColumns: {
-              xs: '1fr',
-              sm: '1fr 1fr',
-              md: '2fr 1fr 1fr',
-            },
+            gap: FOOTER_GAP,
+            gridTemplateColumns: FOOTER_COLUMNS,
           }}
         >
           <Box>
@@ -66,7 +68,7 @@ export default function AppFooter() {
             <Typography
               variant="body2"
               color="text.secondary"
-              sx={{ maxWidth: 360 }}
+              sx={{ maxWidth: FOOTER_BRAND_WIDTH }}
             >
               Collect, schedule, and review audit publications from the sources
               that matter to your organization.
@@ -99,7 +101,7 @@ export default function AppFooter() {
                 </Link>
               </li>
               <li>
-                <Link href="https://github.com/" sx={linkSx}>
+                <Link href="https://github.com/cs5934-t13/auditsector/" sx={linkSx}>
                   Project repository
                 </Link>
               </li>

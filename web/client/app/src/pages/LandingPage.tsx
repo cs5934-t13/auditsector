@@ -1,14 +1,14 @@
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import Container from '@mui/material/Container';
-import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import FeatureGrid from '../components/FeatureGrid';
+import PageSection from '../components/PageSection';
+import Prose from '../components/Prose';
+import SectionPanel from '../components/SectionPanel';
 import LoginCard from '../components/LoginCard';
-
-const sectionSx = {
-  scrollMarginTop: { xs: '72px', md: '136px' },
-} as const;
+import { COMPACT_COLUMNS, PAGE_HEADING_SX } from '../content/layout';
 
 const aboutItems = [
   {
@@ -35,17 +35,15 @@ const aboutItems = [
 export default function LandingPage() {
   return (
     <Container maxWidth="lg">
-      <Box
-        component="section"
+      <PageSection
         id="sign-in"
-        aria-labelledby="sign-in-heading"
+        labelledBy="sign-in-heading"
+        spacing="both"
         sx={{
-          py: { xs: 6, md: 9 },
           display: 'grid',
           gap: { xs: 4, md: 8 },
           gridTemplateColumns: { xs: '1fr', md: '1.15fr 0.85fr' },
           alignItems: 'center',
-          ...sectionSx,
         }}
       >
         <Stack spacing={3} sx={{ maxWidth: 620 }}>
@@ -61,10 +59,7 @@ export default function LandingPage() {
             id="sign-in-heading"
             variant="h3"
             component="h1"
-            sx={{
-              fontSize: { xs: '2rem', sm: '2.75rem', md: '3.25rem' },
-              lineHeight: 1.12,
-            }}
+            sx={PAGE_HEADING_SX}
           >
             Sign in to AuditSector
           </Typography>
@@ -83,15 +78,10 @@ export default function LandingPage() {
         <Box sx={{ justifySelf: { xs: 'stretch', md: 'end' }, width: '100%' }}>
           <LoginCard />
         </Box>
-      </Box>
+      </PageSection>
 
-      <Box
-        component="section"
-        id="about"
-        aria-labelledby="about-heading"
-        sx={{ pb: { xs: 6, md: 9 }, ...sectionSx }}
-      >
-        <Paper variant="outlined" sx={{ p: { xs: 3, md: 5 } }}>
+      <PageSection id="about" labelledBy="about-heading">
+        <SectionPanel>
           <Typography
             id="about-heading"
             variant="h4"
@@ -100,27 +90,13 @@ export default function LandingPage() {
           >
             About AuditSector
           </Typography>
-          <Typography
-            variant="body1"
-            color="text.secondary"
-            sx={{ maxWidth: 760 }}
-          >
+          <Prose>
             AuditSector is a capstone project that brings audit publications
             together: it tracks the sources your organization follows, scans
             them on a schedule, and displays the newest reports first.
-          </Typography>
+          </Prose>
 
-          <Box
-            sx={{
-              mt: 3,
-              display: 'grid',
-              gap: 3,
-              gridTemplateColumns: {
-                xs: '1fr',
-                sm: 'repeat(3, 1fr)',
-              },
-            }}
-          >
+          <FeatureGrid columns={COMPACT_COLUMNS} sx={{ mt: 3 }}>
             {aboutItems.map((item) => (
               <Box key={item.title}>
                 <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600 }}>
@@ -131,9 +107,9 @@ export default function LandingPage() {
                 </Typography>
               </Box>
             ))}
-          </Box>
-        </Paper>
-      </Box>
+          </FeatureGrid>
+        </SectionPanel>
+      </PageSection>
     </Container>
   );
 }
