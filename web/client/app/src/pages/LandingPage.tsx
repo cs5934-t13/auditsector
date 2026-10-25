@@ -19,7 +19,7 @@ const aboutItems = [
   {
     title: 'Review',
     description:
-      'Browse recent audit reports with risk levels and scan status in one view.',
+      'Browse recent audit reports with risk levels and scan status.',
   },
   {
     title: 'Organize',
@@ -74,9 +74,9 @@ export default function LandingPage() {
             color="text.secondary"
             sx={{ fontWeight: 400 }}
           >
-            Audit intelligence, organized. AuditSector gathers audit
+            AuditSector gathers audit
             publications from the sources you trust, schedules regular scans,
-            and presents new reports in a single, searchable view.
+            and presents new and updated reports in one central place.
           </Typography>
         </Stack>
 
@@ -107,7 +107,7 @@ export default function LandingPage() {
           >
             AuditSector is a capstone project that brings audit publications
             together: it tracks the sources your organization follows, scans
-            them on a schedule, and surfaces the newest reports first.
+            them on a schedule, and displays the newest reports first.
           </Typography>
 
           <Box
