@@ -10,9 +10,10 @@ export const publicNav: readonly NavItem[] = [
 
 /** Application navigation, shown only to signed-in users. */
 export const appNav: readonly NavItem[] = [
-  { label: 'Overview', href: '#overview' },
-  { label: 'Audits', href: '#audits' },
-  { label: 'Sources', href: '#sources' },
+  { label: 'Home', href: '#home' },
+  { label: 'Audit Reports', href: '#audit-reports' },
+  { label: 'Categories', href: '#categories' },
+  { label: 'Settings', href: '#settings' },
 ] as const;
 
 /** Returns the navigation appropriate for the current auth state. */

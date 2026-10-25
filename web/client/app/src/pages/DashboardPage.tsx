@@ -7,28 +7,28 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
-import LinkOutlinedIcon from '@mui/icons-material/LinkOutlined';
-import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined';
+import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
+import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import { useAuth } from '../auth/AuthContext';
 
 const features = [
   {
+    icon: <HistoryOutlinedIcon color="primary" fontSize="large" aria-hidden="true" />,
+    title: 'Most recent',
+    description:
+      'Reports appear newest first, so the latest publication is always at the top of the list.',
+  },
+  {
+    icon: <ErrorOutlineOutlinedIcon color="primary" fontSize="large" aria-hidden="true" />,
+    title: 'Risk level',
+    description:
+      'Each report shows its risk level — informational, low, medium, high, or critical.',
+  },
+  {
     icon: <AssessmentOutlinedIcon color="primary" fontSize="large" aria-hidden="true" />,
-    title: 'Track audit reports',
+    title: 'Scan status',
     description:
-      'Follow new audit publications from your sources and review them in one place.',
-  },
-  {
-    icon: <LinkOutlinedIcon color="primary" fontSize="large" aria-hidden="true" />,
-    title: 'Manage sources',
-    description:
-      'Register publication URLs and choose how often each source is scanned.',
-  },
-  {
-    icon: <NotificationsActiveOutlinedIcon color="primary" fontSize="large" aria-hidden="true" />,
-    title: 'Stay current',
-    description:
-      'See the most recently scanned audits first, with clear status and risk levels.',
+      'See whether a report is pending, running, completed, or failed to scan.',
   },
 ];
 
@@ -44,8 +44,8 @@ export default function DashboardPage() {
     <Container maxWidth="lg">
       <Box
         component="section"
-        id="overview"
-        aria-labelledby="overview-heading"
+        id="home"
+        aria-labelledby="home-heading"
         sx={{ py: { xs: 6, md: 9 }, ...sectionSx }}
       >
         <Stack spacing={3} sx={{ maxWidth: 760 }}>
@@ -58,7 +58,7 @@ export default function DashboardPage() {
           />
           {/* Page-level h1: the dashboard's primary heading. */}
           <Typography
-            id="overview-heading"
+            id="home-heading"
             variant="h3"
             component="h1"
             sx={{
@@ -82,13 +82,13 @@ export default function DashboardPage() {
             <Button
               variant="contained"
               size="large"
-              href="#audits"
+              href="#audit-reports"
               endIcon={<ArrowForwardIcon />}
             >
               Explore audits
             </Button>
-            <Button variant="outlined" size="large" href="#sources">
-              Manage sources
+            <Button variant="outlined" size="large" href="#categories">
+              Browse categories
             </Button>
           </Stack>
         </Stack>
@@ -96,17 +96,17 @@ export default function DashboardPage() {
 
       <Box
         component="section"
-        id="audits"
-        aria-labelledby="audits-heading"
+        id="audit-reports"
+        aria-labelledby="audit-reports-heading"
         sx={{ pb: { xs: 6, md: 9 }, ...sectionSx }}
       >
         <Typography
-          id="audits-heading"
+          id="audit-reports-heading"
           variant="h4"
           component="h2"
           gutterBottom
         >
-          What you can do
+          Audit Reports
         </Typography>
         <Box
           sx={{
@@ -135,36 +135,72 @@ export default function DashboardPage() {
             </Paper>
           ))}
         </Box>
+
+        <Paper
+          variant="outlined"
+          sx={{
+            mt: 3,
+            p: { xs: 3, md: 5 },
+            borderStyle: 'dashed',
+            textAlign: 'center',
+          }}
+        >
+          <Typography variant="body2" color="text.secondary">
+            The paginated report list will appear here once{' '}
+            <code>GET /audits/recent</code> is available.
+          </Typography>
+        </Paper>
       </Box>
 
       <Box
         component="section"
-        id="sources"
-        aria-labelledby="sources-heading"
+        id="categories"
+        aria-labelledby="categories-heading"
         sx={{ pb: { xs: 6, md: 9 }, ...sectionSx }}
       >
         <Paper variant="outlined" sx={{ p: { xs: 3, md: 5 } }}>
           <Typography
-            id="sources-heading"
+            id="categories-heading"
             variant="h4"
             component="h2"
             gutterBottom
           >
-            Sources
+            Categories
           </Typography>
           <Typography
             variant="body1"
             color="text.secondary"
             sx={{ maxWidth: 720 }}
           >
-            Add the publication URLs you want AuditSector to scan and pick a
-            frequency — hourly, daily, weekly, or monthly. Each source keeps its
-            own schedule, so high-value publications can be checked more often
-            than the rest.
+            Group audit reports by category so related findings stay together.
+            Categories will be used to filter reports and to follow the areas
+            your organization cares about most.
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 3 }}>
-            Source management is exposed by the <code>POST /sources</code> API
-            and will be available in this dashboard soon.
+        </Paper>
+      </Box>
+
+      <Box
+        component="section"
+        id="settings"
+        aria-labelledby="settings-heading"
+        sx={{ pb: { xs: 6, md: 9 }, ...sectionSx }}
+      >
+        <Paper variant="outlined" sx={{ p: { xs: 3, md: 5 } }}>
+          <Typography
+            id="settings-heading"
+            variant="h4"
+            component="h2"
+            gutterBottom
+          >
+            Settings
+          </Typography>
+          <Typography
+            variant="body1"
+            color="text.secondary"
+            sx={{ maxWidth: 720 }}
+          >
+            Organization details, scan schedules, and account preferences will
+            be managed here.
           </Typography>
         </Paper>
       </Box>
