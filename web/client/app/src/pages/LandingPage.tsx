@@ -56,6 +56,7 @@ export default function LandingPage() {
             size="small"
             sx={{ alignSelf: 'flex-start', fontWeight: 600 }}
           />
+          {/* Page-level h1: describes what this page is for. */}
           <Typography
             id="sign-in-heading"
             variant="h3"
@@ -65,7 +66,7 @@ export default function LandingPage() {
               lineHeight: 1.12,
             }}
           >
-            Audit intelligence, organized.
+            Sign in to AuditSector
           </Typography>
           <Typography
             variant="h6"
@@ -73,12 +74,9 @@ export default function LandingPage() {
             color="text.secondary"
             sx={{ fontWeight: 400 }}
           >
-            AuditSector gathers audit publications from the sources you trust,
-            schedules regular scans, and presents new reports in a single,
-            searchable view.
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Sign in to review audits, manage sources, and track scan status.
+            Audit intelligence, organized. AuditSector gathers audit
+            publications from the sources you trust, schedules regular scans,
+            and presents new reports in a single, searchable view.
           </Typography>
         </Stack>
 

@@ -56,6 +56,7 @@ export default function DashboardPage() {
             size="small"
             sx={{ alignSelf: 'flex-start', fontWeight: 600 }}
           />
+          {/* Page-level h1: the dashboard's primary heading. */}
           <Typography
             id="overview-heading"
             variant="h3"

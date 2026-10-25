@@ -11,4 +11,4 @@ export const ORGANIZATION_NAME = 'City of Alexandria';
 
 /** Fallback when a user selects "Forgot password?" on the sign-in form. */
 export const PASSWORD_RESET_MESSAGE =
-  'To reset your password, contact the administrator.';
+  'To reset your password, contact the administrators.';

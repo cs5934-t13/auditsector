@@ -82,7 +82,18 @@ export default function LoginCard() {
       aria-labelledby="login-heading"
       sx={{ p: { xs: 3, md: 4 }, maxWidth: 440, width: '100%' }}
     >
-      <Typography id="login-heading" variant="h5" component="h2" gutterBottom>
+      {/*
+        The page's h1 already announces "Sign in to AuditSector", so this title
+        is styled text rather than a heading to avoid a redundant h2. The
+        section keeps an accessible name via aria-labelledby.
+      */}
+      <Typography
+        id="login-heading"
+        variant="h5"
+        component="p"
+        gutterBottom
+        sx={{ fontWeight: 600 }}
+      >
         Sign in
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>

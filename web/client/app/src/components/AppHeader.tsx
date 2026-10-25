@@ -17,7 +17,7 @@ import { useTheme } from '@mui/material/styles';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import LogoutIcon from '@mui/icons-material/Logout';
-import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
+import BrandLogo from './BrandLogo';
 import { navFor } from '../content/navigation';
 import { useAuth } from '../auth/AuthContext';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -32,11 +32,15 @@ const DRAWER_ID = 'mobile-navigation';
  *
  * Layout:
  * - Desktop (`md`+): a two-row header. Row one holds the brand block
- *   (organization name + AuditSector); row two holds the primary navigation.
- * - Mobile: a single row with the brand block and a menu button that opens a
+ *   (logo placeholder, "AuditSector", then the organization name to its
+ *   right); row two holds the primary navigation.
+ * - Mobile: a single row with the brand block (logo, "AuditSector", and the
+ *   organization name stacked beneath it) and a menu button that opens a
  *   temporary Drawer.
  *
  * Accessibility notes:
+ * - The brand is a link with spans, not a heading. Each page provides its own
+ *   descriptive `<h1>`, so heading navigation lands on meaningful content.
  * - `<header>` and `<nav aria-label="Primary">` provide landmarks.
  * - The menu button exposes `aria-expanded` and `aria-controls`.
  * - The drawer is dismissible with Escape, the close button, or a backdrop click.
@@ -71,7 +75,7 @@ export default function AppHeader() {
           <Box
             component="a"
             href="/"
-            aria-label={`${settings.organizationName} — AuditSector home`}
+            aria-label="AuditSector home"
             sx={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -82,35 +86,71 @@ export default function AppHeader() {
               borderRadius: 1,
             }}
           >
-            <ShieldOutlinedIcon
-              color="primary"
-              aria-hidden="true"
-              sx={{ fontSize: { xs: 28, md: 34 } }}
-            />
-            <Box sx={{ minWidth: 0 }}>
-              <Typography
-                id="organization-name"
-                variant="subtitle1"
-                component="h2"
-                noWrap
+            <BrandLogo />
+
+            {/*
+              Brand text is intentionally NOT a heading: every page supplies
+              its own descriptive h1, and the header is already a banner
+              landmark with an accessible link name.
+
+              The product name and organization are separate spans so they can
+              be laid out independently.
+              - Mobile: stacked ("AuditSector" above the organization name).
+              - Desktop: "AuditSector" first, organization name to its right.
+            */}
+            <Typography
+              component="p"
+              variant="subtitle1"
+              sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', md: 'row' },
+                alignItems: { md: 'center' },
+                gap: { xs: 0, md: 1.5 },
+                minWidth: 0,
+                lineHeight: 1.2,
+              }}
+            >
+              <Box
+                component="span"
                 sx={{
                   fontWeight: 700,
-                  lineHeight: 1.2,
-                  fontSize: { xs: '1rem', md: '1.15rem' },
+                  fontSize: { xs: '1.05rem', md: '1.2rem' },
+                  letterSpacing: '-0.01em',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                AuditSector
+              </Box>
+
+              {/* Decorative separator: desktop only. */}
+              <Box
+                component="span"
+                aria-hidden="true"
+                sx={{
+                  display: { xs: 'none', md: 'block' },
+                  alignSelf: 'stretch',
+                  width: '1px',
+                  bgcolor: 'divider',
+                }}
+              />
+
+              <Box
+                component="span"
+                id="organization-name"
+                sx={{
+                  display: 'block',
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  color: 'text.secondary',
+                  fontWeight: 500,
+                  fontSize: { xs: '0.85rem', md: '1rem' },
                 }}
               >
                 {settings.organizationName}
-              </Typography>
-              <Typography
-                variant="caption"
-                component="span"
-                color="text.secondary"
-                noWrap
-                sx={{ display: 'block', letterSpacing: '0.02em' }}
-              >
-                AuditSector
-              </Typography>
-            </Box>
+              </Box>
+            </Typography>
           </Box>
 
           <Box sx={{ flexGrow: 1 }} />
