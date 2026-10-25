@@ -20,6 +20,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import { navFor } from '../content/navigation';
 import { useAuth } from '../auth/AuthContext';
+import { useAppSettings } from '../hooks/useAppSettings';
 
 const DRAWER_ID = 'mobile-navigation';
 
@@ -29,7 +30,12 @@ const DRAWER_ID = 'mobile-navigation';
  * Navigation is auth-aware: signed-out visitors only see "About", while
  * signed-in users see the application sections plus their account menu.
  *
- * Uses an inline nav on desktop and a temporary Drawer on smaller screens.
+ * Layout:
+ * - Desktop (`md`+): a two-row header. Row one holds the brand block
+ *   (organization name + AuditSector); row two holds the primary navigation.
+ * - Mobile: a single row with the brand block and a menu button that opens a
+ *   temporary Drawer.
+ *
  * Accessibility notes:
  * - `<header>` and `<nav aria-label="Primary">` provide landmarks.
  * - The menu button exposes `aria-expanded` and `aria-controls`.
@@ -39,6 +45,7 @@ export default function AppHeader() {
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
   const { isAuthenticated, user, signOut } = useAuth();
+  const { settings } = useAppSettings();
   const navItems = navFor(isAuthenticated);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -57,75 +64,58 @@ export default function AppHeader() {
       }}
     >
       <Container maxWidth="lg">
-        <Toolbar disableGutters sx={{ minHeight: { xs: 64, md: 72 }, gap: 2 }}>
+        <Toolbar
+          disableGutters
+          sx={{ minHeight: { xs: 64, md: 72 }, gap: 2 }}
+        >
           <Box
             component="a"
             href="/"
-            aria-label="AuditSector home"
+            aria-label={`${settings.organizationName} — AuditSector home`}
             sx={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 1,
+              gap: 1.5,
+              minWidth: 0,
               color: 'text.primary',
               textDecoration: 'none',
               borderRadius: 1,
             }}
           >
-            <ShieldOutlinedIcon color="primary" aria-hidden="true" />
-            <Typography
-              variant="h6"
-              component="span"
-              sx={{ fontWeight: 700, letterSpacing: '-0.01em' }}
-            >
-              AuditSector
-            </Typography>
+            <ShieldOutlinedIcon
+              color="primary"
+              aria-hidden="true"
+              sx={{ fontSize: { xs: 28, md: 34 } }}
+            />
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                id="organization-name"
+                variant="subtitle1"
+                component="h2"
+                noWrap
+                sx={{
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  fontSize: { xs: '1rem', md: '1.15rem' },
+                }}
+              >
+                {settings.organizationName}
+              </Typography>
+              <Typography
+                variant="caption"
+                component="span"
+                color="text.secondary"
+                noWrap
+                sx={{ display: 'block', letterSpacing: '0.02em' }}
+              >
+                AuditSector
+              </Typography>
+            </Box>
           </Box>
 
           <Box sx={{ flexGrow: 1 }} />
 
-          {isDesktop ? (
-            <Box component="nav" aria-label="Primary">
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                {navItems.map((item) => (
-                  <Button
-                    key={item.href}
-                    href={item.href}
-                    color="inherit"
-                    sx={{
-                      color: 'text.secondary',
-                      px: 1.5,
-                      '&:hover': {
-                        color: 'primary.main',
-                        bgcolor: 'action.hover',
-                      },
-                    }}
-                  >
-                    {item.label}
-                  </Button>
-                ))}
-                {isAuthenticated && (
-                  <>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      component="span"
-                      sx={{ ml: 1.5 }}
-                    >
-                      {user?.username}
-                    </Typography>
-                    <Button
-                      color="inherit"
-                      onClick={signOut}
-                      startIcon={<LogoutIcon />}
-                      sx={{ ml: 0.5, color: 'text.secondary' }}
-                    >
-                      Sign out
-                    </Button>
-                  </>
-                )}
-              </Box>
-            </Box>
-          ) : (
+          {!isDesktop && (
             <IconButton
               edge="end"
               color="primary"
@@ -138,6 +128,64 @@ export default function AppHeader() {
             </IconButton>
           )}
         </Toolbar>
+
+        {isDesktop && (
+          <Box
+            component="nav"
+            aria-label="Primary"
+            sx={{ borderTop: 1, borderColor: 'divider' }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                minHeight: 52,
+              }}
+            >
+              {navItems.map((item) => (
+                <Button
+                  key={item.href}
+                  href={item.href}
+                  color="inherit"
+                  sx={{
+                    color: 'text.secondary',
+                    px: 1.5,
+                    '&:hover': {
+                      color: 'primary.main',
+                      bgcolor: 'action.hover',
+                    },
+                  }}
+                >
+                  {item.label}
+                </Button>
+              ))}
+
+              <Box sx={{ flexGrow: 1 }} />
+
+              {isAuthenticated && (
+                <>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    component="span"
+                    sx={{ mr: 1.5 }}
+                  >
+                    {user?.username}
+                  </Typography>
+                  <Button
+                    color="inherit"
+                    onClick={signOut}
+                    startIcon={<LogoutIcon />}
+                    sx={{ color: 'text.secondary' }}
+                  >
+                    Sign out
+                  </Button>
+                </>
+              )}
+            </Box>
+          </Box>
+        )}
       </Container>
 
       <Drawer

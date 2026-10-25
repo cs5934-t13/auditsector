@@ -7,7 +7,7 @@ import Typography from '@mui/material/Typography';
 import LoginCard from '../components/LoginCard';
 
 const sectionSx = {
-  scrollMarginTop: { xs: '72px', md: '88px' },
+  scrollMarginTop: { xs: '72px', md: '136px' },
 } as const;
 
 const aboutItems = [

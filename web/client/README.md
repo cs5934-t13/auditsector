@@ -10,24 +10,49 @@ app/
 ├── index.html              # Vite entry point
 ├── public/                 # Static assets copied verbatim into dist/
 └── src/
-    ├── main.tsx            # React root, theme provider, auth provider
+    ├── main.tsx            # React root, theme provider, auth + settings providers
     ├── theme.ts            # Central MUI theme (palette, typography, focus styles)
     ├── App.tsx             # Shell: skip link, header, main, footer
+    ├── api/
+    │   └── settings.ts     # GET /api/settings client + defaults
     ├── auth/
     │   └── AuthContext.tsx # Session state (signIn / signOut / useAuth)
     ├── content/
+    │   ├── messages.ts     # Fallback copy (organization name, reset message)
     │   └── navigation.ts   # Public ("About") vs app navigation
+    ├── hooks/
+    │   └── useAppSettings.tsx # SettingsProvider / useAppSettings
     ├── pages/
     │   ├── LandingPage.tsx   # Signed-out: sign-in + About
     │   └── DashboardPage.tsx # Signed-in: overview, audits, sources
     └── components/
-        ├── AppHeader.tsx   # Sticky header: auth-aware nav + mobile drawer
+        ├── AppHeader.tsx   # Sticky header: brand block + nav row (desktop) / drawer (mobile)
         ├── AppFooter.tsx   # Footer: brand, navigation, contact
         └── LoginCard.tsx   # Sign-in form (posts to /api/login)
 ```
 
 `AppHeader` and `AppFooter` are independent components so the page shell stays
 small and either can be reused (or swapped) without touching the other.
+
+## Backend settings
+
+`SettingsProvider` loads `GET /api/settings` once on mount and shares the result
+through `useAppSettings()`. On failure it silently falls back to the constants in
+`content/messages.ts`, so a missing endpoint never blocks the UI.
+
+Expected response (snake_case or camelCase accepted):
+
+```json
+{
+  "organization_name": "City of Alexandria",
+  "password_reset_message": "To reset your password, contact the administrator."
+}
+```
+
+| Setting | Used by |
+|---|---|
+| `organization_name` | Header brand block (heading above "AuditSector") |
+| `password_reset_message` | "Forgot password?" dialog |
 
 ## Authentication gating
 

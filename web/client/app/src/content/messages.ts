@@ -1,15 +1,14 @@
 /**
- * User-facing message content.
+ * Default user-facing message content.
  *
- * These are static defaults for now. When the backend exposes settings, these
- * values should be fetched and passed into the components instead.
+ * These values are used until the backend supplies settings via
+ * `GET /api/settings` (see `src/api/settings.ts`), and remain the fallback if
+ * that request fails.
  */
 
-/**
- * Shown when a user selects "Forgot password?" on the sign-in form.
- *
- * TODO: Populate from a backend setting (for example `GET /api/settings`)
- * rather than hard-coding it here.
- */
+/** Fallback organization name shown in the header. */
+export const ORGANIZATION_NAME = 'City of Alexandria';
+
+/** Fallback when a user selects "Forgot password?" on the sign-in form. */
 export const PASSWORD_RESET_MESSAGE =
   'To reset your password, contact the administrator.';

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -13,7 +14,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useAuth } from '../auth/AuthContext';
-import { PASSWORD_RESET_MESSAGE } from '../content/messages';
+import { useAppSettings } from '../hooks/useAppSettings';
 
 interface LoginResponse {
   status: string;
@@ -33,6 +34,8 @@ interface LoginResponse {
  */
 export default function LoginCard() {
   const { signIn } = useAuth();
+  const { settings, isLoading: settingsLoading, load: loadSettings } =
+    useAppSettings();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -40,7 +43,10 @@ export default function LoginCard() {
   const [error, setError] = useState<string | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
-  const openResetDialog = () => setResetDialogOpen(true);
+  const openResetDialog = () => {
+    setResetDialogOpen(true);
+    loadSettings();
+  };
   const closeResetDialog = () => setResetDialogOpen(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -164,9 +170,18 @@ export default function LoginCard() {
       >
         <DialogTitle id="password-reset-title">Reset your password</DialogTitle>
         <DialogContent>
-          <DialogContentText id="password-reset-description">
-            {PASSWORD_RESET_MESSAGE}
-          </DialogContentText>
+          {settingsLoading ? (
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <CircularProgress size={20} aria-hidden="true" />
+              <DialogContentText id="password-reset-description">
+                Loading contact details…
+              </DialogContentText>
+            </Stack>
+          ) : (
+            <DialogContentText id="password-reset-description">
+              {settings.passwordResetMessage}
+            </DialogContentText>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={closeResetDialog} autoFocus>

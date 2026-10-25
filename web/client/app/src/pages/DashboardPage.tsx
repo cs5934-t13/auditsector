@@ -33,7 +33,7 @@ const features = [
 ];
 
 const sectionSx = {
-  scrollMarginTop: { xs: '72px', md: '88px' },
+  scrollMarginTop: { xs: '72px', md: '136px' },
 } as const;
 
 /** Authenticated dashboard. Only reachable once a user has signed in. */
