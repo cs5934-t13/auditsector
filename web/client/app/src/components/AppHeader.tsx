@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link as RouterLink, NavLink } from 'react-router-dom';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -21,6 +22,7 @@ import BrandLogo from './BrandLogo';
 import { navFor } from '../content/navigation';
 import { useAuth } from '../auth/AuthContext';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { ROUTES } from '../routes';
 
 const DRAWER_ID = 'mobile-navigation';
 
@@ -73,8 +75,8 @@ export default function AppHeader() {
           sx={{ minHeight: { xs: 64, md: 72 }, gap: 2 }}
         >
           <Box
-            component="a"
-            href="/"
+            component={RouterLink}
+            to={ROUTES.landing}
             aria-label="AuditSector home"
             sx={{
               display: 'inline-flex',
@@ -185,8 +187,10 @@ export default function AppHeader() {
             >
               {navItems.map((item) => (
                 <Button
-                  key={item.href}
-                  href={item.href}
+                  key={item.path}
+                  component={NavLink}
+                  to={item.path}
+                  end
                   color="inherit"
                   sx={{
                     color: 'text.secondary',
@@ -194,6 +198,11 @@ export default function AppHeader() {
                     '&:hover': {
                       color: 'primary.main',
                       bgcolor: 'action.hover',
+                    },
+                    '&.active': {
+                      color: 'primary.main',
+                      fontWeight: 700,
+                      bgcolor: 'action.selected',
                     },
                   }}
                 >
@@ -258,8 +267,12 @@ export default function AppHeader() {
         <Divider />
         <List component="nav" aria-label="Primary">
           {navItems.map((item) => (
-            <ListItem key={item.href} disablePadding>
-              <ListItemButton component="a" href={item.href} onClick={closeDrawer}>
+            <ListItem key={item.path} disablePadding>
+              <ListItemButton
+                component={RouterLink}
+                to={item.path}
+                onClick={closeDrawer}
+              >
                 <ListItemText primary={item.label} />
               </ListItemButton>
             </ListItem>

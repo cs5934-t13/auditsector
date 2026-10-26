@@ -2,6 +2,7 @@ import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Divider from '@mui/material/Divider';
 import Link from '@mui/material/Link';
+import { Link as RouterLink } from 'react-router-dom';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
@@ -81,8 +82,8 @@ export default function AppFooter() {
             </Typography>
             <Stack spacing={1} component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
               {navItems.map((item) => (
-                <li key={item.href}>
-                  <Link href={item.href} sx={linkSx}>
+                <li key={item.path}>
+                  <Link component={RouterLink} to={item.path} sx={linkSx}>
                     {item.label}
                   </Link>
                 </li>

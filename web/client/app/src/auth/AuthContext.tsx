@@ -79,13 +79,17 @@ function readStoredUser(): AuthUser | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // Captured once during initialization. It cannot be re-read inside the effect
+  // because a route redirect (for example `/` -> `/home`) may replace the URL
+  // first, removing `?as=` before the effect runs.
+  const [previewUsername] = useState(readPreviewUsername);
+
   const [user, setUser] = useState<AuthUser | null>(() => {
     const stored = readStoredUser();
     if (stored) {
       return stored;
     }
 
-    const previewUsername = readPreviewUsername();
     return previewUsername ? { username: previewUsername } : null;
   });
 
@@ -111,22 +115,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Persist and clean up a preview sign-in so it survives a refresh but leaves
   // no trace in the address bar.
   useEffect(() => {
-    if (!readPreviewUsername()) {
+    if (!previewUsername) {
       return;
     }
 
-    if (user) {
-      try {
-        window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-      } catch {
-        // Non-fatal: the in-memory session still works for this page load.
-      }
+    try {
+      window.sessionStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ username: previewUsername }),
+      );
+    } catch {
+      // Non-fatal: the in-memory session still works for this page load.
     }
 
     stripPreviewParam();
-    // Runs once on mount; `user` is the value derived from the URL.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [previewUsername]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
