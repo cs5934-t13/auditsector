@@ -1,0 +1,4 @@
+pymysql
+cryptography
+pytest
+argon2-cffi

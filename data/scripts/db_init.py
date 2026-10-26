@@ -9,6 +9,8 @@ HOST = os.environ.get("DB_HOST", "")
 DB_NAME = os.environ.get("DB_NAME", "auditsector")
 SQL_FILES = ["init_users.sql", "init_schedules.sql", "init_audits.sql", "init_fetches.sql"]
 
+if os.environ.get("LOAD_DUMMY_DATA") == "true":
+    SQL_FILES.append("init_data.sql")
 
 def connect_db(database=None, retries=30, delay=2):
     for attempt in range(retries):
@@ -44,6 +46,7 @@ def init_db(sql_dir):
                 while cur.nextset():
                     pass
         conn.commit()
+    
 
 if __name__ == "__main__":
     init_db("/sql")
