@@ -11,6 +11,7 @@ import FeatureCard from '../components/FeatureCard';
 import FeatureGrid from '../components/FeatureGrid';
 import PageSection from '../components/PageSection';
 import Prose from '../components/Prose';
+import ScanFrequencyForm from '../components/ScanFrequencyForm';
 import SectionPanel from '../components/SectionPanel';
 import { PAGE_HEADING_SX } from '../content/layout';
 import { useAuth } from '../auth/AuthContext';
@@ -109,6 +110,8 @@ export default function DashboardPage() {
             />
           ))}
         </FeatureGrid>
+
+        <ScanFrequencyForm />
 
         <SectionPanel
           sx={{
