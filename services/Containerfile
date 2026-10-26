@@ -2,5 +2,5 @@ FROM ghcr.io/astral-sh/uv:debian-slim
 COPY ./ /services
 RUN apt-get update 
 WORKDIR /services/fetcher
-RUN uv sync --locked
+RUN uv sync 
 CMD ["uv", "run", "/services/test/test.py"]
