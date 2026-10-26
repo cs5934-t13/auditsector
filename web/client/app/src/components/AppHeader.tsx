@@ -3,6 +3,7 @@ import { Link as RouterLink, NavLink } from 'react-router-dom';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import Container from '@mui/material/Container';
 import Divider from '@mui/material/Divider';
 import Drawer from '@mui/material/Drawer';
@@ -50,7 +51,7 @@ const DRAWER_ID = 'mobile-navigation';
 export default function AppHeader() {
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
-  const { isAuthenticated, user, signOut } = useAuth();
+  const { isAuthenticated, isAdmin, user, signOut } = useAuth();
   const { settings } = useAppSettings();
   const navItems = navFor(isAuthenticated);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -221,6 +222,15 @@ export default function AppHeader() {
                     sx={{ mr: 1.5 }}
                   >
                     {user?.username}
+                    {isAdmin && (
+                      <Chip
+                        label="Admin"
+                        size="small"
+                        color="secondary"
+                        variant="outlined"
+                        sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
+                      />
+                    )}
                   </Typography>
                   <Button
                     color="inherit"

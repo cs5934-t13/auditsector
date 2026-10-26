@@ -1,10 +1,16 @@
-import { ORGANIZATION_NAME, PASSWORD_RESET_MESSAGE } from '../content/messages';
+import {
+  GENERAL_HELP,
+  ORGANIZATION_NAME,
+  PASSWORD_RESET_MESSAGE,
+} from '../content/messages';
 
 export interface AppSettings {
-  /** Organization shown in the header, e.g. "City of Alexandria". */
+  /** Header text (locality) shown in the header, e.g. "City of Alexandria". */
   organizationName: string;
   /** Message shown in the "Forgot password?" dialog. */
   passwordResetMessage: string;
+  /** Text shown above the generic help section. */
+  generalHelp: string;
 }
 
 /**
@@ -14,6 +20,7 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   organizationName: ORGANIZATION_NAME,
   passwordResetMessage: PASSWORD_RESET_MESSAGE,
+  generalHelp: GENERAL_HELP,
 };
 
 /**
@@ -27,6 +34,8 @@ interface SettingsResponse {
   organizationName?: unknown;
   password_reset_message?: unknown;
   passwordResetMessage?: unknown;
+  general_help?: unknown;
+  generalHelp?: unknown;
 }
 
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -53,6 +62,13 @@ function pickOrganizationName(data: SettingsResponse): string {
   return pickString(
     data.organization_name ?? data.organizationName,
     DEFAULT_SETTINGS.organizationName,
+  );
+}
+
+function pickGeneralHelp(data: SettingsResponse): string {
+  return pickString(
+    data.general_help ?? data.generalHelp,
+    DEFAULT_SETTINGS.generalHelp,
   );
 }
 
@@ -88,9 +104,44 @@ export async function fetchAppSettings(signal?: AbortSignal): Promise<AppSetting
     return {
       organizationName: pickOrganizationName(data),
       passwordResetMessage: pickMessage(data),
+      generalHelp: pickGeneralHelp(data),
     };
   } finally {
     window.clearTimeout(timeoutId);
     signal?.removeEventListener('abort', abortFromCaller);
+  }
+}
+
+/** Wire format for saving settings; snake_case matches the API contracts. */
+export interface SettingsUpdate {
+  organization_name?: string;
+  password_reset_message?: string;
+  general_help?: string;
+}
+
+/**
+ * Saves settings to the backend.
+ *
+ * `PUT /api/settings` is not implemented yet. Callers should treat a failure as
+ * "keep the local value" — the admin form applies changes optimistically.
+ *
+ * @throws {Error} If the request fails or returns a non-2xx status.
+ */
+export async function updateAppSettings(
+  update: SettingsUpdate,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch('/api/settings', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(update),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Settings update failed with status ${response.status}`);
   }
 }

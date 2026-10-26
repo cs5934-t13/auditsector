@@ -25,6 +25,8 @@ interface SettingsContextValue {
   usingDefaults: boolean;
   /** Ensures settings are loaded. Safe to call repeatedly. */
   load: () => void;
+  /** Applies changes locally so every consumer updates immediately. */
+  applySettings: (updates: Partial<AppSettings>) => void;
 }
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(
@@ -73,6 +75,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     load();
   }, [load]);
 
+  const applySettings = useCallback((updates: Partial<AppSettings>) => {
+    setSettings((current) => ({ ...current, ...updates }));
+  }, []);
+
   const value = useMemo<SettingsContextValue>(
     () => ({
       settings,
@@ -80,8 +86,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       isLoading: status === 'loading',
       usingDefaults: status !== 'ready',
       load,
+      applySettings,
     }),
-    [settings, status, load],
+    [settings, status, load, applySettings],
   );
 
   return (

@@ -15,6 +15,7 @@ const HomePage = lazy(() => import('./pages/HomePage'));
 const AuditReportsPage = lazy(() => import('./pages/AuditReportsPage'));
 const CategoriesPage = lazy(() => import('./pages/CategoriesPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const ManageUsersPage = lazy(() => import('./pages/ManageUsersPage'));
 
 /** Minimal loading state announced to assistive technology. */
 function RouteFallback() {
@@ -35,6 +36,20 @@ function RequireAuth({ children }: { children: ReactElement }) {
 
   if (!isAuthenticated) {
     return <Navigate to={ROUTES.landing} replace state={{ from: location }} />;
+  }
+
+  return children;
+}
+
+/**
+ * Requires the `ADMIN` role. Non-admins are sent to the settings page rather
+ * than the landing page, since they can still use the rest of the app.
+ */
+function RequireAdmin({ children }: { children: ReactElement }) {
+  const { isAdmin } = useAuth();
+
+  if (!isAdmin) {
+    return <Navigate to={ROUTES.settings} replace />;
   }
 
   return children;
@@ -92,6 +107,16 @@ export default function AppRoutes() {
             element={
               <RequireAuth>
                 <SettingsPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path={ROUTES.manageUsers}
+            element={
+              <RequireAuth>
+                <RequireAdmin>
+                  <ManageUsersPage />
+                </RequireAdmin>
               </RequireAuth>
             }
           />

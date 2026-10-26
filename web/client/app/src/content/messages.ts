@@ -12,3 +12,7 @@ export const ORGANIZATION_NAME = 'City of Alexandria';
 /** Fallback when a user selects "Forgot password?" on the sign-in form. */
 export const PASSWORD_RESET_MESSAGE =
   'To reset your password, contact the administrators.';
+
+/** Fallback text shown above the generic help section. */
+export const GENERAL_HELP =
+  'For help using AuditSector, review the guidance below or contact your administrator.';
