@@ -18,13 +18,6 @@ export default function HomePage() {
     <Container maxWidth="lg">
       <PageSection id="home" labelledBy="home-heading" spacing="both">
         <Stack spacing={3} sx={{ maxWidth: 760 }}>
-          <Chip
-            label="CS5934 Capstone"
-            color="secondary"
-            variant="outlined"
-            size="small"
-            sx={{ alignSelf: 'flex-start', fontWeight: 600 }}
-          />
           <Typography
             id="home-heading"
             variant="h3"

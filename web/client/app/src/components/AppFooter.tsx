@@ -120,9 +120,6 @@ export default function AppFooter() {
           <Typography variant="body2" color="text.secondary">
             &copy; {year} AuditSector. All rights reserved.
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            CS5934 Capstone Project
-          </Typography>
         </Stack>
       </Container>
     </Box>

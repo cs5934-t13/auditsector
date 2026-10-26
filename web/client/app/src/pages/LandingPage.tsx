@@ -47,13 +47,6 @@ export default function LandingPage() {
         }}
       >
         <Stack spacing={3} sx={{ maxWidth: 620 }}>
-          <Chip
-            label="CS5934 Capstone"
-            color="secondary"
-            variant="outlined"
-            size="small"
-            sx={{ alignSelf: 'flex-start', fontWeight: 600 }}
-          />
           {/* Page-level h1: describes what this page is for. */}
           <Typography
             id="sign-in-heading"
@@ -91,7 +84,7 @@ export default function LandingPage() {
             About AuditSector
           </Typography>
           <Prose>
-            AuditSector is a capstone project that brings audit publications
+            AuditSector brings audit publications
             together: it tracks the sources your organization follows, scans
             them on a schedule, and displays the newest reports first.
           </Prose>
