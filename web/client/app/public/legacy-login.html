@@ -41,6 +41,13 @@
         });
         const data = await response.json();
         result.textContent = `${data.status}: ${data.reason}`;
+        if (response.ok && data.status === "approved") {
+          sessionStorage.setItem(
+            "auditsector:user",
+            JSON.stringify({ username })
+          );
+          window.location.assign("/");
+        }
       } catch (err) {
         result.textContent = "Login request failed: " + err;
       }

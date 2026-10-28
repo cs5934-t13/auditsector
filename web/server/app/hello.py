@@ -104,8 +104,18 @@ def valid_url(url):
 
 
 @app.route("/sources", methods=["POST"])
+@login_required
 def add_source():
-    user = request.args.get("user")
+    user = session["username"]
+    requested_user = request.args.get("user")
+    if requested_user is not None and requested_user != user:
+        return {
+            "error": {
+                "code": "USER_MISMATCH",
+                "message": "The supplied user must match the signed-in user."
+            }
+        }, 403
+
     source = request.args.get("source")
     frequency = request.args.get("frequency", "WEEKLY").upper()
 
