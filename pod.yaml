@@ -33,6 +33,11 @@ spec:
             secretKeyRef:
               name: mysql_root_password
               key: mysql_password
+        - name: FLASK_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: flask_secret_key
+              key: secret_key
     - args: # Database (MySQL)
         - mysqld
       image: docker.io/library/mysql:latest
