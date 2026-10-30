@@ -1,8 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Set to "true" to allow the `?as=<username>` preview link in production builds. */
-  readonly VITE_DEMO_AUTH?: string;
+  // Add optional VITE_* variables here when the app needs them.
 }
 
 interface ImportMeta {

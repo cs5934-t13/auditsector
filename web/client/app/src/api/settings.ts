@@ -27,15 +27,36 @@ export const DEFAULT_SETTINGS: AppSettings = {
  * Shape returned by `GET /api/settings`.
  *
  * Both snake_case (matching the existing API contracts) and camelCase are
- * accepted so the front-end does not break if the backend naming changes.
+ * accepted so the front-end does not break if the backend naming changes. The
+ * settings may also arrive wrapped in the project's `{ "data": { ... } }`
+ * envelope, which is what `GET /settings` returns.
  */
 interface SettingsResponse {
+  data?: SettingsFields;
   organization_name?: unknown;
   organizationName?: unknown;
   password_reset_message?: unknown;
   passwordResetMessage?: unknown;
   general_help?: unknown;
   generalHelp?: unknown;
+}
+
+interface SettingsFields {
+  organization_name?: unknown;
+  organizationName?: unknown;
+  password_reset_message?: unknown;
+  passwordResetMessage?: unknown;
+  general_help?: unknown;
+  generalHelp?: unknown;
+}
+
+/** Unwraps the `{ "data": { ... } }` envelope when present. */
+function unwrap(response: SettingsResponse): SettingsFields {
+  if (response.data && typeof response.data === 'object') {
+    return response.data;
+  }
+
+  return response;
 }
 
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -99,7 +120,7 @@ export async function fetchAppSettings(signal?: AbortSignal): Promise<AppSetting
       throw new Error(`Settings request failed with status ${response.status}`);
     }
 
-    const data = (await response.json()) as SettingsResponse;
+    const data = unwrap((await response.json()) as SettingsResponse);
 
     return {
       organizationName: pickOrganizationName(data),

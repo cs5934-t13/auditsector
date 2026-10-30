@@ -30,9 +30,20 @@ function RouteFallback() {
   );
 }
 
+/**
+ * Blocks a route until the session state is known and the user is signed in.
+ *
+ * The `isChecking` guard matters: the session is now resolved by an async
+ * `/api/session` request, so redirecting before it settles would bounce a
+ * signed-in user to the landing page on every refresh.
+ */
 function RequireAuth({ children }: { children: ReactElement }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isChecking } = useAuth();
   const location = useLocation();
+
+  if (isChecking) {
+    return <RouteFallback />;
+  }
 
   if (!isAuthenticated) {
     return <Navigate to={ROUTES.landing} replace state={{ from: location }} />;
@@ -46,7 +57,11 @@ function RequireAuth({ children }: { children: ReactElement }) {
  * than the landing page, since they can still use the rest of the app.
  */
 function RequireAdmin({ children }: { children: ReactElement }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isChecking } = useAuth();
+
+  if (isChecking) {
+    return <RouteFallback />;
+  }
 
   if (!isAdmin) {
     return <Navigate to={ROUTES.settings} replace />;
@@ -62,7 +77,7 @@ function RequireAdmin({ children }: { children: ReactElement }) {
  * the same path; the guard decides which one is reachable.
  */
 export default function AppRoutes() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isChecking } = useAuth();
 
   return (
     <Suspense fallback={<RouteFallback />}>
@@ -71,7 +86,9 @@ export default function AppRoutes() {
           <Route
             path={ROUTES.landing}
             element={
-              isAuthenticated ? (
+              isChecking ? (
+                <RouteFallback />
+              ) : isAuthenticated ? (
                 <Navigate to={ROUTES.home} replace />
               ) : (
                 <LandingPage />

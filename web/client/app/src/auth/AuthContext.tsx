@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -21,165 +22,149 @@ export interface AuthUser {
   role: UserRole;
 }
 
+export type AuthStatus = 'checking' | 'authenticated' | 'anonymous';
+
 interface AuthContextValue {
   user: AuthUser | null;
+  /** True while the initial `/api/session` check is in flight. */
+  isChecking: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  /** Applies the result of a successful login. */
   signIn: (username: string, role?: UserRole) => void;
-  signOut: () => void;
+  /** Clears the server session and the local state. */
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const STORAGE_KEY = 'auditsector:user';
+/** Shape returned by `GET /api/session`. */
+interface SessionResponse {
+  data?: {
+    authenticated?: boolean;
+    username?: unknown;
+    role?: unknown;
+  };
+}
+
+function normalizeRole(value: unknown): UserRole {
+  return value === 'ADMIN' ? 'ADMIN' : 'ANALYST';
+}
 
 /**
- * Query parameter used to preview the signed-in app, e.g. `/?as=jdoe`.
+ * Reads the authoritative session from the server.
  *
- * Add `&role=ADMIN` to preview the administrator experience. This is a
- * development convenience, not authentication: it bypasses the backend
- * entirely. It is disabled in production builds unless
- * `VITE_DEMO_AUTH=true` is set at build time.
+ * The role is deliberately never read from browser storage: `sessionStorage` is
+ * writable by anyone with developer tools, so it is only useful as a hint, not
+ * as proof of identity. A tampered value would otherwise render administrator
+ * screens that the API would reject.
  */
-const PREVIEW_PARAM = 'as';
-const PREVIEW_ROLE_PARAM = 'role';
+async function fetchSession(signal: AbortSignal): Promise<AuthUser | null> {
+  const response = await fetch('/api/session', {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    credentials: 'include',
+    signal,
+  });
 
-function previewAuthEnabled(): boolean {
-  return import.meta.env.DEV || import.meta.env.VITE_DEMO_AUTH === 'true';
-}
+  if (!response.ok) {
+    throw new Error(`Session request failed with status ${response.status}`);
+  }
 
-interface PreviewAuth {
-  username: string;
-  role: UserRole;
-}
+  const body = (await response.json()) as SessionResponse;
+  const data = body.data;
 
-/** Reads `?as=...&role=...`, or null when preview auth is off. */
-function readPreviewAuth(): PreviewAuth | null {
-  if (!previewAuthEnabled()) {
+  if (!data?.authenticated || typeof data.username !== 'string') {
     return null;
   }
 
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const username = params.get(PREVIEW_PARAM)?.trim();
-    if (!username) {
-      return null;
-    }
-
-    const role = params.get(PREVIEW_ROLE_PARAM)?.trim().toUpperCase();
-    return {
-      username,
-      role: role === 'ADMIN' ? 'ADMIN' : 'ANALYST',
-    };
-  } catch {
-    return null;
-  }
-}
-
-/** Removes preview params from the address bar without reloading. */
-function stripPreviewParam() {
-  try {
-    const url = new URL(window.location.href);
-    url.searchParams.delete(PREVIEW_PARAM);
-    url.searchParams.delete(PREVIEW_ROLE_PARAM);
-    const next = `${url.pathname}${url.search}${url.hash}`;
-    window.history.replaceState({}, '', next);
-  } catch {
-    // If the URL cannot be parsed, leaving it untouched is harmless.
-  }
-}
-
-/**
- * Reads a previously signed-in user so a page refresh does not sign the user
- * out. `sessionStorage` is used deliberately: the session is scoped to the tab
- * and is cleared when the tab closes. Storage access is wrapped because it can
- * throw in private browsing or when storage is disabled.
- */
-function readStoredUser(): AuthUser | null {
-  try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-
-    const parsed = JSON.parse(raw) as Partial<AuthUser>;
-    if (typeof parsed.username !== 'string') {
-      return null;
-    }
-
-    return {
-      username: parsed.username,
-      role: parsed.role === 'ADMIN' ? 'ADMIN' : 'ANALYST',
-    };
-  } catch {
-    return null;
-  }
+  return {
+    username: data.username,
+    role: normalizeRole(data.role),
+  };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Captured once during initialization. It cannot be re-read inside the effect
-  // because a route redirect (for example `/` -> `/home`) may replace the URL
-  // first, removing `?as=` before the effect runs.
-  const [previewAuth] = useState(readPreviewAuth);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [status, setStatus] = useState<AuthStatus>('checking');
 
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const stored = readStoredUser();
-    if (stored) {
-      return stored;
-    }
+  // Guards against repeated concurrent checks and updates after unmount.
+  const inFlight = useRef(false);
+  const mounted = useRef(true);
 
-    return previewAuth
-      ? { username: previewAuth.username, role: previewAuth.role }
-      : null;
-  });
-
-  const signIn = useCallback((username: string, role: UserRole = 'ANALYST') => {
-    const nextUser: AuthUser = { username, role };
-    setUser(nextUser);
-    try {
-      window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(nextUser));
-    } catch {
-      // Storage can be unavailable; the in-memory session still works.
-    }
-  }, []);
-
-  const signOut = useCallback(() => {
-    setUser(null);
-    try {
-      window.sessionStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // Nothing to clean up if storage is unavailable.
-    }
-  }, []);
-
-  // Persist and clean up a preview sign-in so it survives a refresh but leaves
-  // no trace in the address bar.
   useEffect(() => {
-    if (!previewAuth) {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const refresh = useCallback(() => {
+    if (inFlight.current) {
       return;
     }
 
+    inFlight.current = true;
+    const controller = new AbortController();
+
+    fetchSession(controller.signal)
+      .then((session) => {
+        if (!mounted.current) {
+          return;
+        }
+        setUser(session);
+        setStatus(session ? 'authenticated' : 'anonymous');
+      })
+      .catch(() => {
+        // A failed check must not leave the app stuck on "checking": treat it
+        // as signed out. Gated routes then redirect to the landing page.
+        if (!mounted.current) {
+          return;
+        }
+        setUser(null);
+        setStatus('anonymous');
+      })
+      .finally(() => {
+        inFlight.current = false;
+      });
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const signIn = useCallback((username: string, role: UserRole = 'ANALYST') => {
+    setUser({ username, role });
+    setStatus('authenticated');
+  }, []);
+
+  const signOut = useCallback(async () => {
+    // Clear the server session first, otherwise a refresh would sign the user
+    // straight back in from the still-valid Flask cookie.
     try {
-      window.sessionStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ username: previewAuth.username, role: previewAuth.role }),
-      );
+      await fetch('/api/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
     } catch {
-      // Non-fatal: the in-memory session still works for this page load.
+      // Network failure: still clear local state so the UI is consistent.
     }
 
-    stripPreviewParam();
-  }, [previewAuth]);
+    setUser(null);
+    setStatus('anonymous');
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      isAuthenticated: user !== null,
-      isAdmin: user?.role === 'ADMIN',
+      isChecking: status === 'checking',
+      isAuthenticated: status === 'authenticated',
+      isAdmin: status === 'authenticated' && user?.role === 'ADMIN',
       signIn,
       signOut,
     }),
-    [user, signIn, signOut],
+    [user, status, signIn, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

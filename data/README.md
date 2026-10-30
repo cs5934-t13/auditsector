@@ -15,8 +15,8 @@ podman build -t db-init data
 ## What it does
 
 1. Connects to MySQL and creates the `auditsector` database if needed.
-2. Runs `scripts/init_users.sql`, `scripts/init_schedules.sql`, and
-   `scripts/init_audits.sql` in that order.
+2. Runs `scripts/init_users.sql`, `scripts/init_schedules.sql`,
+   `scripts/init_audits.sql`, and `scripts/init_settings.sql` in that order.
 3. Appends `scripts/init_data.sql` when `LOAD_DUMMY_DATA=true`.
 
 It retries the connection up to 30 times with a 2 second delay, so it survives
@@ -36,8 +36,8 @@ Remove the MySQL volume for a clean rebuild (see the root `README.md`).
 | `DB_NAME` | `auditsector` | Database to create and populate |
 | `LOAD_DUMMY_DATA` | unset | `true` loads `init_data.sql` |
 
-The container does not declare an `EXPOSE`d port and is not reachable from the
-host; only the `db` container serves MySQL.
+The container declares no `EXPOSE`d port: it is a client of MySQL, not a server.
+Only the `db` container serves MySQL (port `3306`).
 
 ## Schema
 
@@ -46,7 +46,18 @@ host; only the `db` container serves MySQL.
 | `init_users.sql` | `users` |
 | `init_schedules.sql` | `schedules` (FK → `users`) |
 | `init_audits.sql` | `audit_headers`, `tags`, `audit_tags` |
+| `init_settings.sql` | `app_settings` (single row, `settings_id = 1`) |
 | `init_data.sql` | demo rows, including a seeded user for tests |
+
+`init_settings.sql` only creates the table; it inserts no rows. `GET /settings`
+creates the single row from the column defaults on first read, so an empty table
+is the expected state after a fresh init.
 
 See `authentication/` for the shared Argon2 password verification helper and
 `tests/README.md` for schema verification.
+
+## Tests
+
+`tests/` verifies the schema. It does **not** yet cover `app_settings`;
+`EXPECTED_TABLES` in `tests/test_schema.py` still lists only the five original
+tables, so the new table is untested.

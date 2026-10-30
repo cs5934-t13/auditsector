@@ -35,28 +35,39 @@ app/
     │   ├── SettingsPage.tsx     # Signed in: settings, admin section (lazy)
     │   └── ManageUsersPage.tsx  # Admin only: user table (lazy)
     └── components/
-        ├── Layout.tsx      # Shell: skip link, focus management, header + footer
-        ├── AppHeader.tsx   # Sticky header: brand block + nav row (desktop) / drawer (mobile)
-        ├── AppFooter.tsx   # Footer: brand, navigation, contact
-        └── LoginCard.tsx   # Sign-in form (posts to /api/login)
+        ├── Layout.tsx            # Shell: skip link, focus management, header + footer
+        ├── AppHeader.tsx         # Sticky header: brand block + nav (desktop) / drawer (mobile)
+        ├── AppFooter.tsx         # Footer: brand, navigation, contact
+        ├── BrandLogo.tsx         # Decorative SVG mark + product name
+        ├── LoginCard.tsx         # Sign-in form (posts to /api/login)
+        ├── AdminSettingsForm.tsx # ADMIN: edits organization name / reset / help text
+        ├── UserTable.tsx         # ADMIN: user list (renders content/users.ts seed data)
+        ├── ScanFrequencyForm.tsx # Adds a source with a scan frequency (POST /api/sources)
+        ├── ScanFrequencySelect.tsx # Frequency dropdown, options from content/frequencies.ts
+        ├── FeatureGrid.tsx       # FeatureCard.tsx  # Marketing/feature tiles
+        └── PageSection.tsx       # Prose.tsx  # SectionPanel.tsx  # Layout primitives
 ```
 
 `Layout` owns the page shell, and `AppHeader` / `AppFooter` are independent
 components, so either can be reused (or swapped) without touching the other.
+`PageSection`, `SectionPanel` and `Prose` are the shared spacing/typography
+primitives used by every page, so section rhythm stays consistent.
 
 ## Backend settings
 
 `SettingsProvider` loads `GET /api/settings` once on mount and shares the result
-through `useAppSettings()`. On failure it silently falls back to the constants in
-`content/messages.ts`, so a missing endpoint never blocks the UI.
+through `useAppSettings()`. If the request fails it falls back to the constants
+in `content/messages.ts`, so a missing endpoint never blocks the UI.
 
-Expected response (snake_case or camelCase accepted):
+Expected response (wrapped in `data`, snake_case or camelCase accepted):
 
 ```json
 {
-  "organization_name": "City of Alexandria",
-  "password_reset_message": "To reset your password, contact the administrator.",
-  "general_help": "For help using AuditSector, review the guidance below."
+  "data": {
+    "organization_name": "City of Alexandria",
+    "password_reset_message": "To reset your password, contact the administrators.",
+    "general_help": "For help using AuditSector, review the guidance below or contact your administrator."
+  }
 }
 ```
 
@@ -64,13 +75,26 @@ Expected response (snake_case or camelCase accepted):
 |---|---|
 | `organization_name` | Header brand block (heading above "AuditSector") |
 | `password_reset_message` | "Forgot password?" dialog |
-| `general_help` | Generic help guidance text |
+| `general_help` | Help section on the Settings page |
 
-`updateAppSettings()` sends a `PUT /api/settings` with snake_case keys. Neither
-endpoint exists on the server yet, so the app runs entirely on the fallbacks in
-`content/messages.ts`. The provider de-duplicates in-flight requests and exposes
-`status` / `usingDefaults` so components can tell the difference between "still
-loading" and "these are defaults".
+`AdminSettingsForm` saves via `PUT /api/settings` with snake_case keys and
+requires an `ADMIN` session (`403` otherwise). `GET /api/settings` is public,
+because the sign-in page shows the organization name and reset message before a
+session exists. Both are backed by the `app_settings` table; see
+`docs/api/settings.md`.
+
+Saving applies optimistically: `applySettings()` updates the shared context
+before the request runs, so the header and Help text change immediately. If the
+request fails the form shows an error but keeps the local value — a refresh then
+restores the server value.
+
+The provider de-duplicates in-flight requests and exposes `status` /
+`usingDefaults` so components can tell the difference between "still loading"
+and "these are defaults". Defaults from `content/messages.ts` are only used when
+the request fails or has not run.
+
+Responses may be wrapped in `{ "data": { ... } }` or returned as a bare object;
+`unwrap()` in `api/settings.ts` accepts either.
 
 ## Authentication gating
 
@@ -86,22 +110,36 @@ Routes are guarded in `AppRoutes.tsx`, not just hidden by the nav:
 
 - `RequireAuth` redirects unauthenticated visitors to `/`.
 - `RequireAdmin` sends non-admins from `/settings/users` back to `/settings`.
+- Both wait for `isChecking` to clear, so a refresh does not bounce a signed-in
+  user to the landing page.
 - Authenticated pages are `React.lazy` loaded, so they are not in the initial bundle.
 
-`LoginCard` calls `signIn(username)` when the API responds with
-`status: "approved"`. The session is stored in `sessionStorage` so a refresh keeps
-the user signed in, but closing the tab ends the session.
+`ManageUsersPage` renders `content/users.ts`, which is **seed data**, not a live
+list: there is no `GET /users` endpoint yet. It is behind `RequireAdmin`, but
+that guard is client-side only — add a server-side admin check when the
+endpoint is implemented.
 
-**Note:** this is client-side gating only — it controls what is rendered, not
-what is accessible. Authorization must also be enforced by the API.
+`LoginCard` calls `signIn(username, role)` when the API responds with
+`status: "approved"`. The `role` comes from the login response (`ADMIN` or
+`ANALYST`); any other value is treated as `ANALYST`.
 
-### Previewing the signed-in app
+### Where the session lives
 
-The auth provider accepts `?as=<username>` and an optional `&role=ADMIN`, for
-example <http://localhost:5173/?as=jdoe&role=ADMIN>. This bypasses the backend
-entirely and is available only when `import.meta.env.DEV` is true or the build is
-made with `VITE_DEMO_AUTH=true`. The parameters are stripped from the address bar
-after the first load.
+Nothing about the session is stored in the browser. On mount, `AuthProvider`
+calls `GET /api/session` and uses only that answer; the Flask session cookie is
+`HttpOnly`, so JavaScript cannot read or forge it. This replaced an earlier
+design that kept `{username, role}` in `sessionStorage`, where editing the value
+was enough to render the administrator screens.
+
+Signing out calls `POST /api/logout` before clearing local state — otherwise the
+still-valid cookie would sign the user back in on the next refresh.
+
+`isChecking` is exposed so route guards can wait for the session request instead
+of redirecting a signed-in user to the landing page during a refresh.
+
+**Note:** the client-side gating controls what is rendered, not what is
+accessible. The server enforces the same rules: `/sources` requires a session and
+`PUT /settings` requires the `ADMIN` role.
 
 ## Local development
 
@@ -138,7 +176,10 @@ installs **`web/client/web.conf`**, which:
 - falls back to `index.html` via `try_files $uri $uri/ /index.html`, so deep
   links such as `/settings/users` survive a refresh (required by `BrowserRouter`);
 - proxies `location /api/` to `http://localhost:5000/`, **stripping the `/api`
-  prefix**. `localhost` works because the pod shares a network namespace.
+  prefix**. `localhost` works because the pod shares a network namespace;
+- sets `X-Forwarded-Prefix: /api` so Flask can build `/api/...` URLs, and
+  `absolute_redirect off` so a redirect uses `Location: /api/` instead of an
+  absolute URL on nginx's own port 80.
 
 `web/client/nginx.conf` is **not** used by the image (only `web.conf` is copied);
 it is an unused leftover and can be deleted. There is no CORS configuration

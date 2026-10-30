@@ -2,12 +2,28 @@
 
 ## Repository Structure
 ```
-├── data: Data Layer
-├── services: Application Layer
-└── web: Presentation Layer
-    ├── client: Web Front-End
-    └── server: Web Back-End
+├── data: Data Layer          schema + seed SQL, run as a one-shot job
+├── services: Application Layer   scanner workers (currently a placeholder)
+├── web: Presentation Layer
+│   ├── client: Web Front-End    React + Vite, served by nginx
+│   └── server: Web Back-End     Flask API
+└── docs/api: API contracts
 ```
+
+## Roles and the seeded account
+
+Users have a `user_role` of `ADMIN` or `ANALYST` and a `user_status` of `ACTIVE`
+or `INACTIVE`. Only `ADMIN` users can change organization settings.
+
+With `LOAD_DUMMY_DATA=true` (the default in `pod.yaml`), `data/scripts/init_data.sql`
+seeds one administrator:
+
+| Username | Password | Role |
+|---|---|---|
+| `ferguszo` | `abc123` | `ADMIN` |
+
+The password is a development value for an Argon2 hash in the seed file. Change
+it before deploying anywhere real.
 
 ## Development requirements
 
@@ -48,10 +64,31 @@ podman build -t services services
 ```
 podman build -t db-init data
 ```
-6. Update `secrets.yaml.template` with a MySQL Root Password and a Flask secret
-   key, both encoded in base 64, and save as `secrets.yaml`
-   - To convert a value to base 64, use `printf mypassword | base64 -i -`
+6. Create `secrets.yaml` from `secrets.yaml.template`. It needs **two distinct**
+   values, both base 64 encoded:
+
+   | Placeholder | Value |
+   |---|---|
+   | first `BASE 64 ENCODED PASSWORD` (`mysql_password`) | the MySQL root password |
+   | second `BASE 64 ENCODED PASSWORD` (`secret_key`) | the Flask session signing key, e.g. `openssl rand -hex 32` |
+
+   Encode with `printf '%s' <value> | base64`. Use `printf '%s'`, **not** `echo`:
+   `echo` appends a newline, which becomes part of the decoded value. A trailing
+   newline in the password no longer matches the one MySQL was initialised with,
+   and it produces `ERROR 1045 (28000): Access denied` on startup.
+
+   The two values are different, so replace each placeholder by hand rather than
+   running a single global substitution.
+
+```sh
+cp secrets.yaml.template secrets.yaml
+# then edit secrets.yaml and replace each placeholder individually
+```
 7. Add the secrets to podman with `podman kube play secrets.yaml`
+   - `podman secret ls` should list `mysql_root_password` **and**
+     `flask_secret_key`. A leftover placeholder in the template makes
+     `kube play` create only one of them, and the server then exits with
+     `KeyError: 'FLASK_SECRET_KEY'`.
 8. Remove any pod left over from an earlier run (name conflict), then run the pod
 ```
 podman kube play --down pod.yaml

@@ -16,8 +16,8 @@ These instructions use the CLI. Once the container images are built, you can als
 
 The client and server communicate over the pod's shared network namespace: nginx
 proxies `/api/` to `http://localhost:5000/`, which resolves to the Flask container
-because all containers in a pod share one loopback interface. Store passwords are
-listed in the table below.
+because all containers in a pod share one loopback interface. Requirements for
+each service are listed in the table below.
 
 | Service | Image | Listens on | Needs |
 |---|---|---|---|
@@ -48,9 +48,13 @@ podman build -t server web/server
 podman build -t services services
 podman build -t db-init data
 ```
-2. Create `secrets.yaml` from `secrets.yaml.template` and load it.
+2. Create `secrets.yaml` from `secrets.yaml.template`, supplying **both**
+   `mysql_password` and `secret_key` as base 64, then load it. Encode with
+   `printf '%s' value | base64` — `echo` adds a newline that becomes part of the
+   password.
 ```
 podman kube play secrets.yaml
+podman secret ls          # expect mysql_root_password AND flask_secret_key
 ```
 3. Run the pod. This binds host port `8080` to the client container's port `80`.
 ```

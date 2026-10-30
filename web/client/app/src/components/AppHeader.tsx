@@ -234,7 +234,10 @@ export default function AppHeader() {
                   </Typography>
                   <Button
                     color="inherit"
-                    onClick={signOut}
+                    onClick={() => {
+                      // Clears the server session as well as local state.
+                      void signOut();
+                    }}
                     startIcon={<LogoutIcon />}
                     sx={{ color: 'text.secondary' }}
                   >
@@ -292,7 +295,8 @@ export default function AppHeader() {
               <ListItemButton
                 onClick={() => {
                   closeDrawer();
-                  signOut();
+                  // Clears the server session as well as local state.
+                  void signOut();
                 }}
               >
                 <ListItemText primary="Sign out" />

@@ -19,6 +19,11 @@ import { useAppSettings } from '../hooks/useAppSettings';
 interface LoginResponse {
   status: string;
   reason: string;
+  /**
+   * Present on success. Mirrors the `user_role` enum on the backend `users`
+   * table. Anything other than `ADMIN` is treated as `ANALYST`.
+   */
+  role?: string;
 }
 
 /**
@@ -73,8 +78,10 @@ export default function LoginCard() {
       setResult(data);
 
       // Successful credentials switch the app shell into its signed-in state.
+      // The role decides whether the administrator views render, so it must
+      // come from the server rather than defaulting to ANALYST.
       if (response.ok && data.status === LOGIN_SUCCESS_STATUS) {
-        signIn(username);
+        signIn(username, data.role === 'ADMIN' ? 'ADMIN' : 'ANALYST');
       }
     } catch (err) {
       setError(`Login request failed: ${String(err)}`);
