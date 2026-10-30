@@ -3,6 +3,45 @@
 A React 19 + TypeScript single-page app built with Vite and styled with
 [Material UI](https://mui.com/material-ui/).
 
+## Developing with live reload
+
+The container image serves a **snapshot** of `dist/`, so edits do not appear
+until the image is rebuilt. While iterating on the UI, run the Vite dev server
+instead: it compiles on demand and hot-swaps changed modules in the browser.
+
+```sh
+cd web/client/app
+npm install       # first time only
+npm run dev       # http://localhost:5173
+```
+
+Keep the pod running (`podman kube play --replace pod.yaml`) so the API is
+reachable. The dev server proxies `/api` to `http://localhost:8080`, i.e. the
+nginx container, which forwards to Flask — the same request path as production.
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Vite dev server on :5173 with HMR |
+| `npm run typecheck` | `tsc --noEmit` only, no bundle |
+| `npm run build` | Type-check, then emit `dist/` |
+
+Notes:
+
+- The proxy deliberately targets **nginx on :8080, not Flask on :5000**. Flask
+  is not published to the host by `pod.yaml`, and on macOS port 5000 is already
+  held by the AirPlay Receiver. nginx also strips the `/api` prefix, so the dev
+  proxy forwards paths unchanged; rewriting them again would 404 every request.
+- Override the proxy target with `VITE_API_TARGET`, e.g.
+  `VITE_API_TARGET=http://localhost:9000 npm run dev`.
+- Ports are strict: if :5173 is busy the dev server exits rather than silently
+  moving to :5174, so the documented URL is always correct.
+- There is no mock API: `/api/session` and `/api/settings` are proxied to the
+  real pod, so signing in only works while the full pod (including `db`) is
+  running. Use the documented `ferguszo` / `abc123` admin account.
+
+**Rebuild the image before committing or demonstrating** — the pod still serves
+the previous build until you run `podman build -t client web/client`.
+
 ## Layout
 
 ```

@@ -1,11 +1,11 @@
 import Box from '@mui/material/Box';
+import BrandLogo from './BrandLogo';
 import Container from '@mui/material/Container';
 import Divider from '@mui/material/Divider';
 import Link from '@mui/material/Link';
 import { Link as RouterLink } from 'react-router-dom';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import {
   FOOTER_BRAND_WIDTH,
   FOOTER_COLUMNS,
@@ -61,7 +61,7 @@ export default function AppFooter() {
                 mb: 1,
               }}
             >
-              <ShieldOutlinedIcon color="primary" aria-hidden="true" />
+              <BrandLogo />
               <Typography variant="h6" component="p" sx={{ fontWeight: 700 }}>
                 AuditSector
               </Typography>

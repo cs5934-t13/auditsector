@@ -97,6 +97,23 @@ podman kube play --replace pod.yaml
 ```
 9. The app should be available at http://localhost:8080/
 
+### Front-end development with live reload
+
+The `client` image serves a build snapshot, so UI edits do not appear until the
+image is rebuilt. While working on the front-end, run Vite's dev server instead
+and keep the pod running for the API:
+
+```sh
+cd web/client/app
+npm install      # first time only
+npm run dev      # http://localhost:5173, edits hot-reload in the browser
+```
+
+The dev server proxies `/api` to the pod's nginx on `:8080`, so `/api/session`
+and `/api/settings` hit the real backend and sign-in works. Rebuild the image
+(`podman build -t client web/client`) before demonstrating or committing, since
+the pod keeps serving the previous build. See `web/client/README.md` for details.
+
 ### Verifying the pod
 
 `podman ps -a --filter pod=web` should show `web-client`, `web-server`, `web-db`,
