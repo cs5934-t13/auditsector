@@ -4,8 +4,6 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import FeatureGrid from '../components/FeatureGrid';
 import PageSection from '../components/PageSection';
-import Prose from '../components/Prose';
-import SectionPanel from '../components/SectionPanel';
 import LoginCard from '../components/LoginCard';
 import { COMPACT_COLUMNS, PAGE_HEADING_SX } from '../content/layout';
 
