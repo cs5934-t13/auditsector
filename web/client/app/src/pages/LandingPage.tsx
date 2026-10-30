@@ -65,30 +65,8 @@ export default function LandingPage() {
             publications from the sources you trust, schedules regular scans,
             and presents new and updated reports in one central place.
           </Typography>
-        </Stack>
 
-        <Box sx={{ justifySelf: { xs: 'stretch', md: 'end' }, width: '100%' }}>
-          <LoginCard />
-        </Box>
-      </PageSection>
-
-      <PageSection id="about" labelledBy="about-heading">
-        <SectionPanel>
-          <Typography
-            id="about-heading"
-            variant="h4"
-            component="h2"
-            gutterBottom
-          >
-            About AuditSector
-          </Typography>
-          <Prose>
-            AuditSector brings audit publications
-            together: it tracks the sources your organization follows, scans
-            them on a schedule, and displays the newest reports first.
-          </Prose>
-
-          <FeatureGrid columns={COMPACT_COLUMNS} sx={{ mt: 3 }}>
+                    <FeatureGrid columns={COMPACT_COLUMNS} sx={{ mt: 3 }}>
             {aboutItems.map((item) => (
               <Box key={item.title}>
                 <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600 }}>
@@ -100,7 +78,11 @@ export default function LandingPage() {
               </Box>
             ))}
           </FeatureGrid>
-        </SectionPanel>
+        </Stack>
+
+        <Box sx={{ justifySelf: { xs: 'stretch', md: 'end' }, width: '100%' }}>
+          <LoginCard />
+        </Box>
       </PageSection>
     </Container>
   );
