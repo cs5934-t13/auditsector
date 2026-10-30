@@ -22,6 +22,14 @@ interface LoginResponse {
 }
 
 /**
+ * Status returned by Flask on successful authentication.
+ *
+ * The backend (`web/server/app/hello.py`) returns `"approved"`, not `"valid"`.
+ * Keep this in sync if the API contract changes.
+ */
+const LOGIN_SUCCESS_STATUS = 'approved';
+
+/**
  * Sign-in form.
  *
  * Preserves the original static page's behaviour: posts credentials as JSON to
@@ -65,7 +73,7 @@ export default function LoginCard() {
       setResult(data);
 
       // Successful credentials switch the app shell into its signed-in state.
-      if (response.ok && data.status === 'valid') {
+      if (response.ok && data.status === LOGIN_SUCCESS_STATUS) {
         signIn(username);
       }
     } catch (err) {
@@ -156,7 +164,7 @@ export default function LoginCard() {
 
       {result && (
         <Alert
-          severity={result.status === 'valid' ? 'success' : 'error'}
+          severity={result.status === LOGIN_SUCCESS_STATUS ? 'success' : 'error'}
           role="status"
           sx={{ mt: 3 }}
         >
