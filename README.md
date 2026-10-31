@@ -60,9 +60,9 @@ podman build -t server web/server
 ```
 podman build -t services services
 ```
-5. Build the data module as `db-init` — this tag must match `pod.yaml`
+5. Build the data module
 ```
-podman build -t db-init data
+podman build -t data data
 ```
 6. Create `secrets.yaml` from `secrets.yaml.template`. It needs **two distinct**
    values, both base 64 encoded:
