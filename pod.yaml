@@ -36,7 +36,7 @@ spec:
         - name: FLASK_SECRET_KEY
           valueFrom:
             secretKeyRef:
-              name: flask_secret_key
+              name: flask-secret-key
               key: secret_key
     - args: # Database (MySQL)
         - mysqld
