@@ -162,6 +162,7 @@ export default function LoginCard() {
                 alignSelf: { xs: 'flex-start', sm: 'center' },
                 whiteSpace: 'nowrap',
                 fontWeight: 600,
+                fontSize: '0.75rem',
               }}
             >
               Forgot password?
