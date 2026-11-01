@@ -151,15 +151,6 @@ def handle_http_error(error: HTTPException):
     response.content_type = "application/json"
     return response
 
-
-@app.route("/")
-def hello_world():
-    return "<h1>Hello AuditSector!</h1>"
-
-@app.route("/test")
-def test_api():
-    return ["Hello from the server"]
-
 @app.route("/login", methods=["POST"])
 def login_user():
     data = request.get_json(silent=True) or {}
