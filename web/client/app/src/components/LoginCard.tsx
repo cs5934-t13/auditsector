@@ -52,6 +52,7 @@ export default function LoginCard() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const isLoginDisabled = !username || !password || submitting;
   const [result, setResult] = useState<LoginResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -146,7 +147,7 @@ export default function LoginCard() {
               type="submit"
               variant="contained"
               size="large"
-              disabled={submitting}
+              disabled={isLoginDisabled}
               sx={{ flexGrow: 1 }}
             >
               {submitting ? 'Signing in…' : 'Sign in'}
