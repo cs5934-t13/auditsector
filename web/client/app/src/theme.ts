@@ -3,10 +3,7 @@ import { createTheme } from '@mui/material/styles';
 /**
  * Central MUI theme.
  *
- * - Uses a system font stack so the app renders correctly without a network
- *   request to a font CDN (important for an offline-capable container).
- * - Focus-visible outlines are defined globally to keep keyboard navigation
- *   obvious, even on custom link/button elements.
+ * Background roles, and how they drive the framed shell in `components/Layout`:
  */
 const theme = createTheme({
   palette: {
@@ -22,7 +19,9 @@ const theme = createTheme({
       contrastText: '#FFFFFF',
     },
     background: {
-      default: '#F7F9FB',
+      // Backdrop behind the app frame.
+      default: '#D7D2CB',
+      // The app frame itself, plus all raised surfaces inside it.
       paper: '#FFFFFF',
     },
     text: {
