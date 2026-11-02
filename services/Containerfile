@@ -1,4 +1,12 @@
+
 FROM ghcr.io/astral-sh/uv:debian-slim
-COPY ./ /services
-RUN apt-get update 
-CMD ["uv", "run", "/services/test/test.py"]
+
+WORKDIR /services
+
+COPY requirements.txt /services/requirements.txt
+
+RUN uv pip install --system -r /services/requirements.txt
+
+COPY . /services
+
+CMD ["uv", "run", "--no-project", "--no-managed-python", "/services/test/test.py"]
