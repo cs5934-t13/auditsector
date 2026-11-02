@@ -4,6 +4,7 @@
  * These values are used until the backend supplies settings via
  * `GET /api/settings` (see `src/api/settings.ts`), and remain the fallback if
  * that request fails.
+ * TODO: Replace once backend settings are fully implemented
  */
 
 /** Fallback organization name shown in the header. */
