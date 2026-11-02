@@ -1,13 +1,15 @@
-from flask import Flask, request, session
-from functools import wraps
+import os
 from datetime import timedelta
+from functools import wraps
 from urllib.parse import urlparse
-from werkzeug.exceptions import HTTPException
-from werkzeug.middleware.proxy_fix import ProxyFix
+
 import pymysql
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
-import os
+from flask import Flask, request, session
+from services import users
+from werkzeug.exceptions import HTTPException
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 app.secret_key = os.environ["FLASK_SECRET_KEY"]
