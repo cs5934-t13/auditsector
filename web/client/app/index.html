@@ -1,50 +1,22 @@
-<html>
+<!doctype html>
+<html lang="en">
   <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="AuditSector collects, schedules, and organizes audit publications from the sources you trust."
+    />
+    <meta name="theme-color" content="#0B4F6C" />
+    <link rel="icon" type="image/svg+xml" href="/audit-sector-icon.svg" />
     <title>AuditSector</title>
   </head>
   <body>
-    <h1>Welcome to AuditSector</h1>
-    <p>A message from our server:</p>
-    <embed type="text/plain" src="/api/test" />
-
-    <div class="login-container">
-    <h2>Login</h2>
-    <form id="login-form">
-      <div class="input-group">
-        <label for="username">Username</label>
-        <input type="text" id="username" name="username" placeholder="Enter your username" required>
-      </div>
-
-      <div class="input-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" placeholder="Enter your password" required>
-      </div>
-
-      <button type="submit" class="btn">Sign In</button>
-    </form>
-    <p id="login-result"></p>
-  </div>
-
-  <script>
-    document.getElementById("login-form").addEventListener("submit", async (event) => {
-      event.preventDefault();
-
-      const username = document.getElementById("username").value;
-      const password = document.getElementById("password").value;
-      const result = document.getElementById("login-result");
-
-      try {
-        const response = await fetch("/api/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, password }),
-        });
-        const data = await response.json();
-        result.textContent = `${data.status}: ${data.reason}`;
-      } catch (err) {
-        result.textContent = "Login request failed: " + err;
-      }
-    });
-  </script>
+    <noscript>
+      AuditSector requires JavaScript to run. Please enable JavaScript in your
+      browser.
+    </noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
