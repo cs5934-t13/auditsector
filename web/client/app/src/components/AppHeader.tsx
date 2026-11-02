@@ -23,7 +23,7 @@ import BrandLogo from './BrandLogo';
 import { navFor } from '../content/navigation';
 import { useAuth } from '../auth/AuthContext';
 import { useAppSettings } from '../hooks/useAppSettings';
-import { BRAND_FONT, BRAND_FONT_WEIGHT, BRAND_LETTER_SPACING, ORGANIZATION_FONT } from '../theme';
+import { BRAND_FONT, BRAND_FONT_WEIGHT, BRAND_LETTER_SPACING, NAV_BAR_ITEM_SX, NAV_DRAWER_ITEM_SX, ORGANIZATION_FONT, QUIET_LINK_SX } from '../theme';
 import { ROUTES } from '../routes';
 
 const DRAWER_ID = 'mobile-navigation';
@@ -198,14 +198,6 @@ export default function AppHeader() {
       {isDesktop && (
         /*
           The nav band deliberately sits OUTSIDE the header's `Container`.
-
-          `Container` applies horizontal padding, so a border drawn on anything
-          inside it stops short of the header's left and right edges and the
-          rule looks like it floats. Putting the band here lets its top and
-          bottom borders span the full header width, while the `Container`
-          inside keeps the links aligned with the brand above and the page
-          content below.
-
           Top and bottom borders bracket the row so it reads as a distinct
           band rather than a stray divider.
         */
@@ -234,19 +226,7 @@ export default function AppHeader() {
                   to={item.path}
                   end
                   color="inherit"
-                  sx={{
-                    color: 'text.secondary',
-                    px: 1.5,
-                    '&:hover': {
-                      color: 'primary.main',
-                      bgcolor: 'action.hover',
-                    },
-                    '&.active': {
-                      color: 'primary.main',
-                      fontWeight: 700,
-                      bgcolor: 'action.selected',
-                    },
-                  }}
+                  sx={NAV_BAR_ITEM_SX}
                 >
                   {item.label}
                 </Button>
@@ -280,7 +260,7 @@ export default function AppHeader() {
                       void signOut();
                     }}
                     startIcon={<LogoutIcon />}
-                    sx={{ color: 'text.secondary' }}
+                    sx={QUIET_LINK_SX}
                   >
                     Sign out
                   </Button>
@@ -323,9 +303,11 @@ export default function AppHeader() {
           {navItems.map((item) => (
             <ListItem key={item.path} disablePadding>
               <ListItemButton
-                component={RouterLink}
+                component={NavLink}
                 to={item.path}
+                end
                 onClick={closeDrawer}
+                sx={NAV_DRAWER_ITEM_SX}
               >
                 <ListItemText primary={item.label} />
               </ListItemButton>

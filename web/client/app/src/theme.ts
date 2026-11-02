@@ -1,4 +1,8 @@
-import { createTheme } from '@mui/material/styles';
+import {
+  createTheme,
+  type SxProps,
+  type Theme,
+} from '@mui/material/styles';
 
 /**
  * Display font stacks for the brand block.
@@ -25,6 +29,72 @@ export const BRAND_FONT_WEIGHT = 500;
 
 /** Slight positive tracking, which small-cap faces need to avoid crowding. */
 export const BRAND_LETTER_SPACING = '0.02em';
+
+/**
+ * Shared interaction styling for navigation entries.
+ *
+ * Both navigation surfaces — the desktop `Button` bar and the mobile
+ * `ListItemButton` drawer — render a `NavLink`, so React Router's `.active`
+ * class and `aria-current="page"` are available in both. These fragments keep
+ * the two from drifting apart, which they had before: the drawer originally
+ * used a plain `Link` and so had no active state at all.
+ *
+ * They are exported `SxProps` fragments rather than `MuiButton` /
+ * `MuiListItemButton` theme overrides because they only apply to navigation
+ * links. A global override would also tint ordinary buttons and list items.
+ */
+
+/** Colors an entry takes when it matches the current route. */
+const NAV_ACTIVE_COLORS = {
+  color: 'primary.main',
+  bgcolor: 'action.selected',
+} as const;
+
+/** Resting and hover styling shared by both navigation surfaces. */
+const navEntryBase: SxProps<Theme> = {
+  color: 'text.secondary',
+  '&:hover': {
+    color: 'primary.main',
+    bgcolor: 'action.hover',
+  },
+};
+
+/** Desktop nav bar: a `Button` acting as a link. */
+export const NAV_BAR_ITEM_SX: SxProps<Theme> = {
+  ...navEntryBase,
+  px: 1.5,
+  '&.active': {
+    ...NAV_ACTIVE_COLORS,
+    // `Button` renders its label itself, so weight goes on the root.
+    fontWeight: 700,
+  },
+};
+
+/** Mobile drawer: a `ListItemButton` wrapping `ListItemText`. */
+export const NAV_DRAWER_ITEM_SX: SxProps<Theme> = {
+  ...navEntryBase,
+  '&.active': NAV_ACTIVE_COLORS,
+  // `ListItemText` renders the label in a child, so the weight change has to
+  // target that child rather than the button root.
+  '&.active .MuiListItemText-primary': {
+    fontWeight: 700,
+  },
+};
+
+/**
+ * Quiet text links and text-only buttons: secondary color at rest, brand color
+ * on hover. Used by the footer link lists and the header's "Sign out" button so
+ * every low-emphasis interactive text behaves the same way.
+ */
+export const QUIET_LINK_SX: SxProps<Theme> = {
+  ...navEntryBase,
+};
+
+/** Footer links: the shared quiet-link styling plus a slightly smaller size. */
+export const FOOTER_LINK_SX: SxProps<Theme> = {
+  ...QUIET_LINK_SX,
+  fontSize: '0.95rem',
+};
 
 /**
  * Central MUI theme.
@@ -94,6 +164,13 @@ const theme = createTheme({
     h3: {
       fontWeight: 600,
     },
+    // Section headings inside a page ("Help", "Administration", ...) use `h5`
+    // as an `h2`. Matching the weight to `h3` keeps section headings visually
+    // related to the page title instead of inheriting MUI's regular-weight
+    // default and looking like body copy.
+    h5: {
+      fontWeight: 600,
+    },
   },
   components: {
     MuiCssBaseline: {
@@ -119,9 +196,42 @@ const theme = createTheme({
         },
       },
     },
+    MuiTypography: {
+      styleOverrides: {
+        /**
+         * Page title treatment, applied wherever `variant="h3"` is used with
+         * `component="h1"`.
+         *
+         * This lived in `content/layout.ts` as `PAGE_HEADING_SX`, but only the
+         * landing and home pages remembered to apply it, so pages rendered at
+         * three different sizes. As a variant override every page heading is
+         * identical by construction.
+         *
+         * `clamp()` is used rather than a breakpoint object because
+         * `theme.typography` and `styleOverrides` are emitted as plain CSS —
+         * only the `sx` prop expands responsive objects into media queries.
+         * The curve is tuned to match the previous xs/md steps: 2rem at ~375px,
+         * 3.25rem at ~1200px and above.
+         */
+        h3: {
+          fontSize: 'clamp(2rem, 1.4rem + 2.4vw, 3.25rem)',
+          lineHeight: 1.12,
+        },
+      },
+    },
     MuiLink: {
       defaultProps: {
         underline: 'hover',
+      },
+      styleOverrides: {
+        // Global link hover so any `Link` gets the brand color, not just the
+        // ones that remembered to declare it. Components that need a different
+        // resting color still set their own `color`.
+        root: {
+          '&:hover': {
+            color: 'primary.main',
+          },
+        },
       },
     },
   },

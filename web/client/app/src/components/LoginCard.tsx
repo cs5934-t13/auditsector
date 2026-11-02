@@ -157,7 +157,6 @@ export default function LoginCard() {
               type="button"
               onClick={openResetDialog}
               aria-haspopup="dialog"
-              underline="hover"
               sx={{
                 alignSelf: { xs: 'flex-start', sm: 'center' },
                 whiteSpace: 'nowrap',

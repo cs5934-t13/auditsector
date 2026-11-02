@@ -24,7 +24,6 @@ export default function ManageUsersPage() {
         <Link
           component={RouterLink}
           to={ROUTES.settings}
-          underline="hover"
           sx={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -43,7 +42,6 @@ export default function ManageUsersPage() {
             variant="h3"
             component="h1"
             gutterBottom
-            sx={{ fontSize: { xs: '1.75rem', md: '2.25rem' } }}
           >
             Manage Users
           </Typography>

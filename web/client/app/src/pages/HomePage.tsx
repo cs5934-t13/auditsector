@@ -5,7 +5,6 @@ import Typography from '@mui/material/Typography';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { Link as RouterLink } from 'react-router-dom';
 import PageSection from '../components/PageSection';
-import { PAGE_HEADING_SX } from '../content/layout';
 import { useAuth } from '../auth/AuthContext';
 import { ROUTES } from '../routes';
 
@@ -21,7 +20,6 @@ export default function HomePage() {
             id="home-heading"
             variant="h3"
             component="h1"
-            sx={PAGE_HEADING_SX}
           >
             Welcome back{user ? `, ${user.username}` : ''}.
           </Typography>

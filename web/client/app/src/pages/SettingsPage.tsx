@@ -62,7 +62,6 @@ function AdminSection() {
         <Link
           component={RouterLink}
           to={ROUTES.manageUsers}
-          underline="hover"
           aria-label="Manage Users"
           sx={{
             mt: 2,
