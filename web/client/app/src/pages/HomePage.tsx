@@ -71,7 +71,8 @@ export default function HomePage() {
                 Browse categories
               </Button>
             </Stack>
-                        <Box
+            
+            <Box
               component="section"
               id="scan-activity"
               sx={{ scrollMarginTop: SCROLL_OFFSET }}
