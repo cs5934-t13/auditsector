@@ -23,6 +23,7 @@ import BrandLogo from './BrandLogo';
 import { navFor } from '../content/navigation';
 import { useAuth } from '../auth/AuthContext';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { BRAND_FONT, BRAND_FONT_WEIGHT, BRAND_LETTER_SPACING, ORGANIZATION_FONT } from '../theme';
 import { ROUTES } from '../routes';
 
 const DRAWER_ID = 'mobile-navigation';
@@ -35,9 +36,9 @@ const DRAWER_ID = 'mobile-navigation';
  *
  * Layout:
  * - Desktop (`md`+): a two-row header. Row one holds the brand block
- *   (logo placeholder, "AuditSector", then the organization name to its
+ *   (logo placeholder, "Audit Sector", then the organization name to its
  *   right); row two holds the primary navigation.
- * - Mobile: a single row with the brand block (logo, "AuditSector", and the
+ * - Mobile: a single row with the brand block (logo, "Audit Sector", and the
  *   organization name stacked beneath it) and a menu button that opens a
  *   temporary Drawer.
  *
@@ -78,7 +79,7 @@ export default function AppHeader() {
           <Box
             component={RouterLink}
             to={ROUTES.landing}
-            aria-label="AuditSector home"
+            aria-label="Audit Sector home"
             sx={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -98,8 +99,8 @@ export default function AppHeader() {
 
               The product name and organization are separate spans so they can
               be laid out independently.
-              - Mobile: stacked ("AuditSector" above the organization name).
-              - Desktop: "AuditSector" first, organization name to its right.
+              - Mobile: stacked ("Audit Sector" above the organization name).
+              - Desktop: "Audit Sector" first, organization name to its right.
             */}
             <Typography
               component="p"
@@ -116,13 +117,18 @@ export default function AppHeader() {
               <Box
                 component="span"
                 sx={{
-                  fontWeight: 700,
-                  fontSize: { xs: '1.05rem', md: '1.2rem' },
-                  letterSpacing: '-0.01em',
+                  // Alegreya SC is a small-caps display face, so the wordmark is
+                  // set in normal case in the markup and rendered as caps here.
+                  // Same family/weight/tracking as the footer wordmark.
+                  fontFamily: BRAND_FONT,
+                  fontWeight: BRAND_FONT_WEIGHT,
+                  fontSize: { xs: '1.25rem', md: '1.5rem' },
+                  lineHeight: 1.1,
+                  letterSpacing: BRAND_LETTER_SPACING,
                   whiteSpace: 'nowrap',
                 }}
               >
-                AuditSector
+                Audit Sector
               </Box>
 
               {/* Decorative separator: desktop only. */}
@@ -147,9 +153,14 @@ export default function AppHeader() {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                   color: 'text.secondary',
-                  fontWeight: 500,
-                  fontSize: { xs: '0.85rem', md: '1rem' },
-                }}
+                  // Crimson Text only has 400/600/700; 400 keeps the byline
+                  // quiet next to the bold wordmark. The larger size offsets
+                  // its smaller x-height relative to the display face.
+                  fontFamily: ORGANIZATION_FONT,
+                  fontWeight: 400,
+                  fontSize: { xs: '1rem', md: '1.15rem' },
+                  lineHeight: 1.2,
+                  letterSpacing: '0.01em',                }}
               >
                 {settings.organizationName}
               </Box>

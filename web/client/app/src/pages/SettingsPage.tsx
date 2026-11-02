@@ -55,7 +55,7 @@ function AdminSection() {
           Administration
         </Typography>
         <Prose>
-          Manage who can access AuditSector and maintain the organization-wide
+          Manage who can access Audit Sector and maintain the organization-wide
           text shown throughout the application.
         </Prose>
 

@@ -14,6 +14,11 @@ import {
 } from '../content/layout';
 import { navFor } from '../content/navigation';
 import { useAuth } from '../auth/AuthContext';
+import {
+  BRAND_FONT,
+  BRAND_FONT_WEIGHT,
+  BRAND_LETTER_SPACING,
+} from '../theme';
 
 const linkSx = {
   color: 'text.secondary',
@@ -62,8 +67,17 @@ export default function AppFooter() {
               }}
             >
               <BrandLogo />
-              <Typography variant="h6" component="p" sx={{ fontWeight: 700 }}>
-                AuditSector
+              {/* Same wordmark treatment as the header brand block. */}
+              <Typography
+                variant="h6"
+                component="p"
+                sx={{
+                  fontFamily: BRAND_FONT,
+                  fontWeight: BRAND_FONT_WEIGHT,
+                  letterSpacing: BRAND_LETTER_SPACING,
+                }}
+              >
+                Audit Sector
               </Typography>
             </Box>
             <Typography
@@ -118,7 +132,7 @@ export default function AppFooter() {
           justifyContent="space-between"
         >
           <Typography variant="body2" color="text.secondary">
-            &copy; {year} AuditSector. All rights reserved.
+            &copy; {year} Audit Sector. All rights reserved.
           </Typography>
         </Stack>
       </Container>

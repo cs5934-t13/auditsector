@@ -48,7 +48,7 @@ export default function ManageUsersPage() {
             Manage Users
           </Typography>
           <Prose>
-            Review the people who can sign in to AuditSector and their assigned
+            Review the people who can sign in to Audit Sector and their assigned
             roles. Editing and inviting users will be enabled once the user
             management API is available.
           </Prose>

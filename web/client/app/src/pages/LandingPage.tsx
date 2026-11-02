@@ -51,7 +51,7 @@ export default function LandingPage() {
             component="h1"
             sx={PAGE_HEADING_SX}
           >
-            Sign in to AuditSector
+            Sign in to Audit Sector
           </Typography>
           <Typography
             variant="h6"
@@ -59,7 +59,7 @@ export default function LandingPage() {
             color="text.secondary"
             sx={{ fontWeight: 400 }}
           >
-            AuditSector gathers audit
+            Audit Sector gathers audit
             publications from the sources you trust, schedules regular scans,
             and presents new and updated reports in one central place.
           </Typography>

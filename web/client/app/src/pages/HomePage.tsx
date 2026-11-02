@@ -31,7 +31,7 @@ export default function HomePage() {
             color="text.secondary"
             sx={{ fontWeight: 400, maxWidth: 620 }}
           >
-            AuditSector gathers audit publications from the sources you trust,
+            Audit Sector gathers audit publications from the sources you trust,
             schedules regular scans, and presents new reports in a single,
             searchable view.
           </Typography>

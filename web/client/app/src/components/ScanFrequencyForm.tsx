@@ -56,7 +56,7 @@ export default function ScanFrequencyForm() {
         Scan frequency
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Choose how often AuditSector checks a publication for new reports.
+        Choose how often Audit Sector checks a publication for new reports.
       </Typography>
 
       <Stack

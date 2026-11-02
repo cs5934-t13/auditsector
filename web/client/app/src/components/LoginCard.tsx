@@ -98,7 +98,7 @@ export default function LoginCard() {
       sx={{ p: { xs: 3, md: 4 }, maxWidth: 440, width: '100%' }}
     >
       {/*
-        The page's h1 already announces "Sign in to AuditSector", so this title
+        The page's h1 already announces "Sign in to Audit Sector", so this title
         is styled text rather than a heading to avoid a redundant h2. The
         section keeps an accessible name via aria-labelledby.
       */}
@@ -112,7 +112,7 @@ export default function LoginCard() {
         Sign in
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Use your AuditSector credentials to continue.
+        Use your Audit Sector credentials to continue.
       </Typography>
 
       <Box component="form" onSubmit={handleSubmit} noValidate>

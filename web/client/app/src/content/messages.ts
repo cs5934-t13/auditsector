@@ -16,4 +16,4 @@ export const PASSWORD_RESET_MESSAGE =
 
 /** Fallback text shown above the generic help section. */
 export const GENERAL_HELP =
-  'For help using AuditSector, review the guidance below or contact your administrator.';
+  'For help using Audit Sector, review the guidance below or contact your administrator.';
