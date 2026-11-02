@@ -66,7 +66,11 @@ export default function AppHeader() {
       color="inherit"
       elevation={0}
       sx={{
-        borderBottom: 1,
+        // On desktop the nav band below supplies both rules, so the toolbar
+        // does not need its own bottom border there. On mobile the nav band is
+        // absent, so the toolbar keeps a bottom rule to separate it from the
+        // page content.
+        borderBottom: { xs: 1, md: 0 },
         borderColor: 'divider',
         bgcolor: 'background.paper',
       }}
@@ -126,6 +130,12 @@ export default function AppHeader() {
                   lineHeight: 1.1,
                   letterSpacing: BRAND_LETTER_SPACING,
                   whiteSpace: 'nowrap',
+                  // Underline rule beneath the wordmark itself.
+                  display: 'inline-block',
+                  alignSelf: { xs: 'flex-start', md: 'center' },
+                  borderBottom: 1, 
+                  borderColor: 'currentColor',
+                  pb: 0.25,
                 }}
               >
                 Audit Sector
@@ -160,7 +170,8 @@ export default function AppHeader() {
                   fontWeight: 400,
                   fontSize: { xs: '1rem', md: '1.15rem' },
                   lineHeight: 1.2,
-                  letterSpacing: '0.01em',                }}
+                  letterSpacing: '0.01em',
+                }}
               >
                 {settings.organizationName}
               </Box>
@@ -182,14 +193,33 @@ export default function AppHeader() {
             </IconButton>
           )}
         </Toolbar>
+      </Container>
 
-        {isDesktop && (
-          <Box
-            component="nav"
-            aria-label="Primary"
-            sx={{ borderTop: 1, borderColor: 'divider' }}
-          >
+      {isDesktop && (
+        /*
+          The nav band deliberately sits OUTSIDE the header's `Container`.
+
+          `Container` applies horizontal padding, so a border drawn on anything
+          inside it stops short of the header's left and right edges and the
+          rule looks like it floats. Putting the band here lets its top and
+          bottom borders span the full header width, while the `Container`
+          inside keeps the links aligned with the brand above and the page
+          content below.
+
+          Top and bottom borders bracket the row so it reads as a distinct
+          band rather than a stray divider.
+        */
+        <Box
+          sx={{
+            borderTop: 1,
+            borderBottom: 1,
+            borderColor: 'divider',
+          }}
+        >
+          <Container maxWidth="lg">
             <Box
+              component="nav"
+              aria-label="Primary"
               sx={{
                 display: 'flex',
                 alignItems: 'center',
@@ -257,9 +287,9 @@ export default function AppHeader() {
                 </>
               )}
             </Box>
-          </Box>
-        )}
-      </Container>
+          </Container>
+        </Box>
+      )}
 
       <Drawer
         id={DRAWER_ID}

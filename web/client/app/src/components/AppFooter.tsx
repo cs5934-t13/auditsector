@@ -75,6 +75,7 @@ export default function AppFooter() {
                   fontFamily: BRAND_FONT,
                   fontWeight: BRAND_FONT_WEIGHT,
                   letterSpacing: BRAND_LETTER_SPACING,
+                  borderBottom: 1, 
                 }}
               >
                 Audit Sector
