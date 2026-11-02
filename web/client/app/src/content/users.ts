@@ -16,6 +16,7 @@ export interface ManagedUser {
  * The backend `users` table exists (`data/db_init/init_users.sql`) but user
  * management endpoints do not, so this list is client-side only. Replace with a
  * fetch once `GET /users` is available.
+ * TODO: Replace once backend user management endpoints are implemented
  */
 export const INITIAL_USERS: readonly ManagedUser[] = [
   {

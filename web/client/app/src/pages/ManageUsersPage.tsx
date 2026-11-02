@@ -24,7 +24,6 @@ export default function ManageUsersPage() {
         <Link
           component={RouterLink}
           to={ROUTES.settings}
-          underline="hover"
           sx={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -43,12 +42,11 @@ export default function ManageUsersPage() {
             variant="h3"
             component="h1"
             gutterBottom
-            sx={{ fontSize: { xs: '1.75rem', md: '2.25rem' } }}
           >
             Manage Users
           </Typography>
           <Prose>
-            Review the people who can sign in to AuditSector and their assigned
+            Review the people who can sign in to Audit Sector and their assigned
             roles. Editing and inviting users will be enabled once the user
             management API is available.
           </Prose>

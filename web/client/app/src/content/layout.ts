@@ -22,17 +22,6 @@ export const PANEL_PADDING = { xs: 3, md: 5 } as const;
 /** Maximum width for long-form paragraphs, to keep line length readable. */
 export const PROSE_WIDTH = 720;
 
-/**
- * Typography override for a page's single h1.
- *
- * A responsive object is used rather than a theme typography variant because
- * MUI theme variants do not expand breakpoint objects into media queries.
- */
-export const PAGE_HEADING_SX = {
-  fontSize: { xs: '2rem', sm: '2.75rem', md: '3.25rem' },
-  lineHeight: 1.12,
-} as const;
-
 /** Responsive columns for a grid of feature cards. */
 export const FEATURE_COLUMNS = {
   xs: '1fr',
