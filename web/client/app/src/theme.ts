@@ -1,62 +1,49 @@
 import {
+  alpha,
   createTheme,
   type SxProps,
   type Theme,
 } from '@mui/material/styles';
 
-/**
- * Display font stacks for the brand block.
- *
- * The faces themselves are loaded in `main.tsx` from `@fontsource/*`, so they
- * are bundled as local assets and the app still renders correctly offline.
- * Each stack ends in a serif fallback with similar proportions, then the
- * generic, so a failed font load degrades gracefully.
- *
- * These are plain constants rather than custom theme typography variants
- * because MUI does not type custom variants on `<Typography variant>`.
- */
-export const BRAND_FONT = '"Alegreya SC", Georgia, "Times New Roman", serif';
-export const ORGANIZATION_FONT = '"Crimson Text", Georgia, "Times New Roman", serif';
+/** Brand ink, the source color for hover/selected tints. */
+const PRIMARY_MAIN = '#0B4F6C';
 
 /**
- * Weight for the "Audit Sector" wordmark.
- *
- * Alegreya SC is a small-caps face, so its bold weights look much heavier than
- * the same weight in a normal lowercase face. 500 keeps the wordmark distinct
- * without shouting. Shared by the header and footer so they match.
+ * Accent used for interactive text (links) and for the nav hover state.
  */
-export const BRAND_FONT_WEIGHT = 500;
+export const LINK_ACCENT = '#9A3A00';
 
-/** Slight positive tracking, which small-cap faces need to avoid crowding. */
-export const BRAND_LETTER_SPACING = '0.02em';
+/**
+ * Lighter tint of `LINK_ACCENT`, used as the resting surface for filled
+ * (contained) buttons and for the selected nav entry.
+ */
+export const ACCENT_LIGHT = '#B34B00';
+
+/**
+ * Translucent accent wash for hover/selected surfaces.
+ */
+export const ACCENT_WASH = alpha(LINK_ACCENT, 0.12);
+
+const NAV_HOVER = {
+  color: '#FFFFFF',
+  bgcolor: LINK_ACCENT,
+} as const;
 
 /**
  * Shared interaction styling for navigation entries.
- *
- * Both navigation surfaces — the desktop `Button` bar and the mobile
- * `ListItemButton` drawer — render a `NavLink`, so React Router's `.active`
- * class and `aria-current="page"` are available in both. These fragments keep
- * the two from drifting apart, which they had before: the drawer originally
- * used a plain `Link` and so had no active state at all.
- *
- * They are exported `SxProps` fragments rather than `MuiButton` /
- * `MuiListItemButton` theme overrides because they only apply to navigation
- * links. A global override would also tint ordinary buttons and list items.
  */
-
-/** Colors an entry takes when it matches the current route. */
 const NAV_ACTIVE_COLORS = {
-  color: 'primary.main',
-  bgcolor: 'action.selected',
+  color: LINK_ACCENT,
+  bgcolor: ACCENT_WASH,
 } as const;
 
-/** Resting and hover styling shared by both navigation surfaces. */
+/** Resting styling shared by both navigation surfaces. */
 const navEntryBase: SxProps<Theme> = {
   color: 'text.secondary',
-  '&:hover': {
-    color: 'primary.main',
-    bgcolor: 'action.hover',
-  },
+};
+
+const navHoverSx: SxProps<Theme> = {
+  '&:hover': NAV_HOVER,
 };
 
 /** Desktop nav bar: a `Button` acting as a link. */
@@ -68,6 +55,7 @@ export const NAV_BAR_ITEM_SX: SxProps<Theme> = {
     // `Button` renders its label itself, so weight goes on the root.
     fontWeight: 700,
   },
+  ...navHoverSx,
 };
 
 /** Mobile drawer: a `ListItemButton` wrapping `ListItemText`. */
@@ -79,48 +67,54 @@ export const NAV_DRAWER_ITEM_SX: SxProps<Theme> = {
   '&.active .MuiListItemText-primary': {
     fontWeight: 700,
   },
+  ...navHoverSx,
 };
 
 /**
- * Quiet text links and text-only buttons: secondary color at rest, brand color
- * on hover. Used by the footer link lists and the header's "Sign out" button so
- * every low-emphasis interactive text behaves the same way.
+ * Body links: accent color at rest, underlined on hover.
  */
-export const QUIET_LINK_SX: SxProps<Theme> = {
-  ...navEntryBase,
+export const BODY_LINK_SX: SxProps<Theme> = {
+  color: LINK_ACCENT,
+  '&:hover': { textDecoration: 'underline' },
 };
 
-/** Footer links: the shared quiet-link styling plus a slightly smaller size. */
+/** Footer links: the body-link treatment plus a slightly smaller size. */
 export const FOOTER_LINK_SX: SxProps<Theme> = {
-  ...QUIET_LINK_SX,
+  ...BODY_LINK_SX,
   fontSize: '0.95rem',
 };
 
 /**
+ * Low-emphasis text-only buttons such as the header's "Sign out".
+ */
+export const QUIET_LINK_SX: SxProps<Theme> = {
+  color: 'primary.main',
+  '&:hover': NAV_HOVER,
+};
+
+/**
+ * Display font stacks for the brand block.
+ */
+export const BRAND_FONT = '"Alegreya SC", Georgia, "Times New Roman", serif';
+export const ORGANIZATION_FONT = '"Crimson Text", Georgia, "Times New Roman", serif';
+
+/**
+ * Weight for the "Audit Sector" wordmark.
+ */
+export const BRAND_FONT_WEIGHT = 500;
+
+/** Slight positive tracking, which small-cap faces need to avoid crowding. */
+export const BRAND_LETTER_SPACING = '0.02em';
+
+
+/**
  * Central MUI theme.
- *
- * Background roles, and how they drive the framed shell in `components/Layout`:
- *
- * - `background.default` is painted on `<body>` by `CssBaseline`, so it is the
- *   backdrop you see in the gutter *around* the app frame.
- * - `background.paper` is the framed shell and every surface inside it
- *   (header, footer, panels, tables).
- *
- * Expressing the design with MUI's existing roles means no custom palette key,
- * no `CssBaseline` body override, and no extra `bgcolor` on the layout root.
- *
- * - Uses a system font stack for body text so the app renders correctly
- *   without a network request to a font CDN (important for an
- *   offline-capable container). The two display faces used by the header are
- *   self-hosted, see above.
- * - Focus-visible outlines are defined globally to keep keyboard navigation
- *   obvious, even on custom link/button elements.
  */
 const theme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#0B4F6C',
+      main: PRIMARY_MAIN,
       dark: '#073A50',
       light: '#3A7CA5',
       contrastText: '#FFFFFF',
@@ -128,6 +122,12 @@ const theme = createTheme({
     secondary: {
       main: '#0F766E',
       contrastText: '#FFFFFF',
+    },
+    action: {
+      hover: alpha(PRIMARY_MAIN, 0.06),
+      hoverOpacity: 0.06,
+      selected: alpha(PRIMARY_MAIN, 0.12),
+      selectedOpacity: 0.12,
     },
     background: {
       // Backdrop behind the app frame.
@@ -194,6 +194,51 @@ const theme = createTheme({
           textTransform: 'none',
           fontWeight: 600,
         },
+        /**
+         * Rest and hover states
+         */
+        contained: {
+          '&&:not(.Mui-disabled)': {
+            backgroundColor: ACCENT_LIGHT,
+            color: '#FFFFFF',
+          },
+          '&&:hover': {
+            backgroundColor: LINK_ACCENT,
+            color: '#FFFFFF',
+          },
+        },
+        outlined: {
+          '&&:not(.Mui-disabled)': {
+            color: LINK_ACCENT,
+            borderColor: LINK_ACCENT,
+          },
+          '&&:hover': {
+            color: '#FFFFFF',
+            backgroundColor: LINK_ACCENT,
+            borderColor: LINK_ACCENT,
+          },
+        },
+        text: {
+          '&&:hover': {
+            color: '#FFFFFF',
+            backgroundColor: LINK_ACCENT,
+          },
+        },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        /**
+         * Icon buttons adopt the same hover block as the rest of the app.
+         * `&&` for the same specificity reason: MUI sets its hover background
+         * via the `--IconButton-hoverBg` custom property at equal specificity.
+         */
+        root: {
+          '&&:hover': {
+            color: '#FFFFFF',
+            backgroundColor: LINK_ACCENT,
+          },
+        },
       },
     },
     MuiTypography: {
@@ -201,17 +246,6 @@ const theme = createTheme({
         /**
          * Page title treatment, applied wherever `variant="h3"` is used with
          * `component="h1"`.
-         *
-         * This lived in `content/layout.ts` as `PAGE_HEADING_SX`, but only the
-         * landing and home pages remembered to apply it, so pages rendered at
-         * three different sizes. As a variant override every page heading is
-         * identical by construction.
-         *
-         * `clamp()` is used rather than a breakpoint object because
-         * `theme.typography` and `styleOverrides` are emitted as plain CSS —
-         * only the `sx` prop expands responsive objects into media queries.
-         * The curve is tuned to match the previous xs/md steps: 2rem at ~375px,
-         * 3.25rem at ~1200px and above.
          */
         h3: {
           fontSize: 'clamp(2rem, 1.4rem + 2.4vw, 3.25rem)',
@@ -224,12 +258,14 @@ const theme = createTheme({
         underline: 'hover',
       },
       styleOverrides: {
-        // Global link hover so any `Link` gets the brand color, not just the
-        // ones that remembered to declare it. Components that need a different
-        // resting color still set their own `color`.
+        /**
+         * Body-link default: accent color at rest, underline on hover.
+         */
         root: {
+          color: LINK_ACCENT,
           '&:hover': {
-            color: 'primary.main',
+            color: LINK_ACCENT,
+            textDecoration: 'underline',
           },
         },
       },

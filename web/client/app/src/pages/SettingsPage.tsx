@@ -11,6 +11,7 @@ import Prose from '../components/Prose';
 import SectionPanel from '../components/SectionPanel';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useAuth } from '../auth/AuthContext';
+import { ACCENT_WASH, LINK_ACCENT } from '../theme';
 import { ROUTES } from '../routes';
 
 /** Settings shared by every signed-in user. */
@@ -74,13 +75,21 @@ function AdminSection() {
             borderRadius: 1,
             border: 1,
             borderColor: 'divider',
-            color: 'text.primary',
+            // Body-link treatment (accent at rest, underlined on hover) on a
+            // bordered row instead of inline text. The hover wash uses the
+            // shared accent tint so it matches the nav highlight; `action.hover`
+            // would be teal next to an accent border.
+            color: LINK_ACCENT,
             fontWeight: 600,
-            '&:hover': { bgcolor: 'action.hover', borderColor: 'primary.main' },
+            '&:hover': {
+              bgcolor: ACCENT_WASH,
+              borderColor: LINK_ACCENT,
+              textDecoration: 'underline',
+            },
           }}
         >
           Manage Users
-          <ChevronRightIcon sx={{ color: 'text.secondary' }} aria-hidden="true" />
+          <ChevronRightIcon sx={{ color: 'inherit' }} aria-hidden="true" />
         </Link>
       </SectionPanel>
 
