@@ -1,6 +1,7 @@
 import { Alert, Button, Stack, TextField } from '@mui/material'
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { getSourceUrlError } from './sourceUrl'
+
 
 export type AddSourceValues = {
   sourceUrl: string
@@ -10,12 +11,16 @@ type AddSourceFormProps = {
   onSubmit: (values: AddSourceValues) => void | Promise<void>
   onCancel?: () => void
   submitLabel?: string
+  onChange?: () => void
+  renderExtraFields?: (isSubmitting: boolean) => ReactNode
 }
 
 export default function AddSourceForm({
   onSubmit,
   onCancel,
   submitLabel = 'Add source',
+  onChange,
+  renderExtraFields,
 }: AddSourceFormProps) {
   const [sourceUrl, setSourceUrl] = useState('')
   const [touched, setTouched] = useState(false)
@@ -68,11 +73,13 @@ export default function AddSourceForm({
         onChange={(event) => {
           setSourceUrl(event.target.value)
           setSubmissionError('')
+          onChange?.()
         }}
         onBlur={() => setTouched(true)}
         error={showError}
         helperText={showError ? validationError : 'Enter the address of an audit source.'}
       />
+      {renderExtraFields?.(isSubmitting)}
       {submissionError && <Alert severity="error">{submissionError}</Alert>}
       <Stack direction="row" spacing={2}>
         <Button type="submit" variant="contained" disabled={isSubmitting}>

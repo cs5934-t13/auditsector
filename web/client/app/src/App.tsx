@@ -1,34 +1,23 @@
-import { Alert, Container, Stack, Typography } from '@mui/material'
-import { useState } from 'react'
-import AddSourceForm from './components/AddSourceForm'
+import { BrowserRouter } from 'react-router-dom';
+import AppRoutes from './AppRoutes';
+import { AuthProvider } from './auth/AuthContext';
+import { SettingsProvider } from './hooks/useAppSettings';
 
-function App() {
-  const [validatedUrl, setValidatedUrl] = useState('')
-
+/**
+ * Root component.
+ *
+ * Providers sit outside the router so they are not remounted on navigation.
+ * `BrowserRouter` is used because nginx serves `index.html` for unknown paths
+ * (see `web.conf`), which keeps deep links working on refresh.
+ */
+export default function App() {
   return (
-    <Container component="main" maxWidth="sm" sx={{ py: 4 }}>
-      <Stack spacing={3}>
-        <Typography variant="h4" component="h1">
-          Add Source
-        </Typography>
-        <Typography color="text.secondary">
-          Form preview: submitting checks the URL format. No source will be saved.
-        </Typography>
-        <AddSourceForm
-          submitLabel="Validate source"
-          onSubmit={({ sourceUrl }) => setValidatedUrl(sourceUrl)}
-          onCancel={() => setValidatedUrl('')}
-        />
-        <div role="status" aria-live="polite" aria-atomic="true">
-          {validatedUrl && (
-            <Alert severity="info" sx={{ overflowWrap: 'anywhere' }}>
-              URL format accepted: {validatedUrl}. No source has been saved.
-            </Alert>
-          )}
-        </div>
-      </Stack>
-    </Container>
-  )
+    <AuthProvider>
+      <SettingsProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </SettingsProvider>
+    </AuthProvider>
+  );
 }
-
-export default App

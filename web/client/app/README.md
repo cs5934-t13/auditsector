@@ -1,7 +1,8 @@
 # AuditSector React client
 
-React + TypeScript, Vite and ESLint. MUI with Emotion follows the later agreement
-between Amr and Jit, replacing the design document's Tailwind/shadcn choice.
+React + TypeScript and Vite, using the shared MUI theme and application layout.
+MUI with Emotion follows the agreement between Amr and Jit, replacing the design
+document's Tailwind/shadcn choice.
 
 From this directory:
 
@@ -9,23 +10,33 @@ From this directory:
 npm ci
 npm run dev
 npm run build
-npm run lint
+npm run typecheck
 npm test
 ```
 
-Vite forwards `/api/*` to Flask at `http://localhost:5000/*`, removing `/api`,
-matching the nginx deployment configuration. Flask must run separately for API calls.
+The URL-validation tests import TypeScript directly and require a Node.js version
+with native TypeScript type stripping enabled, such as Node 22.18+ or Node 24+.
 
-AW-24 provides a URL form with inline validation, keyboard submission, cancellation,
-and a typed `onSubmit({ sourceUrl })` callback. The callback can return a Promise;
-while pending, controls are disabled, and rejection displays a retry message.
-Validation requires an explicit HTTP(S) URL and does not check website availability.
+Vite serves the frontend at `http://localhost:5173` and forwards `/api/*` unchanged
+to NGINX at `http://localhost:8080`. NGINX removes the `/api` prefix and forwards
+requests to Flask inside the pod. Keep the existing pod running for login and API
+requests. See `../README.md` for the shared frontend development instructions.
 
-The current App is a preview: it validates without contacting the API or saving data.
-AW-25 will connect the callback to the REST endpoint and authenticated user context.
-Jit's AW-18 layout and AW-73 frequency selector remain separate responsibilities.
-No tags, collection toggle, or user-ID inputs are added here.
+## Add Source form (AW-24)
 
-The preserved login example is at `public/legacy-login.html`, served at
-`/legacy-login.html` in development and the production build. Its existing API
-behavior has not been verified end to end.
+Sign in through the shared application and open Audit Reports (`/audits`).
+`ScanFrequencyForm` renders the reusable `AddSourceForm` with the existing
+frequency selector. The shared layout, navigation, authentication, and theme remain
+in place.
+
+The form supports HTTP(S) URL validation, inline errors, keyboard submission,
+cancellation, and a typed `onSubmit({ sourceUrl })` callback. A pending callback
+disables the controls, and rejection displays a retry message. Validation checks
+URL syntax, not website availability.
+
+The Validate source action only confirms the URL format. It does not save a
+schedule or call the source API. Changing the URL or frequency clears the previous
+confirmation. Cancel clears the URL and feedback and restores the default frequency.
+
+AW-25 will connect this form to the existing `POST /api/sources` endpoint using the
+shared authenticated user context and selected frequency.
