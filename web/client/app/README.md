@@ -11,8 +11,25 @@ npm ci
 npm run dev
 npm run build
 npm run typecheck
+npm run lint
 npm test
 ```
+
+TypeScript checks are split by environment: `tsconfig.app.json` checks browser
+code under `src`, and `tsconfig.node.json` checks `vite.config.ts` with Node types.
+The root `tsconfig.json` references both projects. `npm run typecheck` uses build
+mode to check both, and `npm run build` runs that check before bundling. Both
+projects retain strict checking; build caches are stored under ignored
+`node_modules/.tmp`.
+
+ESLint checks the TypeScript source, React hook usage, Vite configuration, and
+Node-based test/config files. `npm run lint` fails on errors or warnings. Type
+checking remains a separate `npm run typecheck` step.
+
+The lint dependencies temporarily override `minimatch` to patched version 11.0.4
+for [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249).
+All current consumers belong to the lint tooling, not the application runtime.
+Revisit this override when the upstream lint packages require a patched release.
 
 The URL-validation tests import TypeScript directly and require a Node.js version
 with native TypeScript type stripping enabled, such as Node 22.18+ or Node 24+.
