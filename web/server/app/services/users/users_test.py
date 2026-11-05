@@ -1,25 +1,13 @@
 import os
 
-import pymysql
 import pytest
 from testing import containers
 
-import users
+from users.users import Users
 
-def get_db_connection():
-    host = os.getenv("DB_HOST","localhost")
-    user = os.getenv("DB_USERNAME", "root")
-    password = os.getenv("DB_PASSWORD", "")
-    database = os.getenv("DB_NAME", "auditsector")
-    return pymysql.connect(
-        host = host,
-        use = user,
-        password = password,
-        database = database,
-        cursorclass = pymysql.cursors.DictCursor)
 
-def create_users_table() :
-    query = """
+def create_users_table(connection):
+    create_query = """
     CREATE TABLE IF NOT EXISTS users(
     user_id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     first_name      VARCHAR(100) NOT NULL,
@@ -34,28 +22,62 @@ def create_users_table() :
     );
     """
 
-    with get_db_connection as conn, conn.cursor() as cur:
-        cur.execute(query)
+    insert_query = """
+    INSERT INTO users (first_name, last_name, email, username, password_hash, user_role, user_status)
+        VALUES ('John', 'Smith', 'jsmith@vt.edu', 'jsmith', 'abc123', 'ANALYST', 'ACTIVE');
+    """
 
-
+    with connection.cursor() as cur:
+        cur.execute(create_query)
+        cur.execute(insert_query)
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(request):
+def users(request):
     container = containers.DatabaseContainer()
     container.start_mysql()
     connection = container.get_test_db_connection()
+    create_users_table(connection)
+    connection.commit()
 
-    def remove_container():
-        container.stop_mysql()
+    os.environ["MYSQL_ROOT_PASSWORD"] = "test"
+    users = Users(port=4321);
 
-    request.addfinalizer(remove_container)
-    # os.environ["DB_CONN"] = mysql.get_connection_url()
-    # os.environ["DB_HOST"] = mysql.get_container_host_ip()
-    # os.environ["DB_PORT"] = mysql.get_exposed_port(3361)
-    # os.environ["DB_USERNAME"] = mysql.username
-    # os.environ["DB_PASSWORD"] = mysql.password
-    # os.environ["DB_NAME"] = mysql.dbname
+
+    yield users
+
+    container.stop_mysql()
+    os.unsetenv("MYSQL_ROOT_PASSWORD")
+
+
 
 
 def test_test_runner():
     assert True
+
+
+class TestGetUsers:
+    def test_get_users(self, users):
+        all_users = users.get_users()
+        assert len(all_users) == 1
+
+
+class TestGetUser:
+    def test_valid_user(self):
+        assert False
+
+    def test_invalid_request(self):
+        assert False
+
+    def test_not_found(self):
+        assert False
+
+
+class TestAddUser:
+    def test_add_valid_user(self):
+        assert False
+
+    def test_missing_username(self):
+        assert False
+
+    def test_missing_password(self):
+        assert False

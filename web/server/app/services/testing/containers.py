@@ -1,6 +1,8 @@
+import time
+
 import podman
 import pymysql
-import time
+
 
 class DatabaseContainer:
     def __init__(self):
@@ -25,10 +27,11 @@ class DatabaseContainer:
 
     def stop_mysql(self):
         self.container.stop()
+        self.container.remove()
 
     def get_test_db_connection(self):
 
-
+        # Wait for MySQL to start up
         for _ in range(5):
             time.sleep(5)
 
