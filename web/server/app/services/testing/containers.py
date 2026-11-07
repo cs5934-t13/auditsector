@@ -6,9 +6,7 @@ import pymysql
 
 class DatabaseContainer:
     def __init__(self):
-        self.client = podman.PodmanClient(
-            base_url="unix:///run/user/1000/podman/podman.sock"
-        )
+        self.client = podman.PodmanClient.from_env()
 
     def start_mysql(self):
         environment = [
