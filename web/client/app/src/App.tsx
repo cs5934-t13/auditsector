@@ -1,10 +1,23 @@
-import { useState } from 'react'
-import { readStoredUsername } from './auth/storedUser'
-import AddSourcePage from './pages/AddSourcePage'
+import { BrowserRouter } from 'react-router-dom';
+import AppRoutes from './AppRoutes';
+import { AuthProvider } from './auth/AuthContext';
+import { SettingsProvider } from './hooks/useAppSettings';
 
-function App() {
-  const [username] = useState(() => readStoredUsername())
-  return <AddSourcePage user={username} />
+/**
+ * Root component.
+ *
+ * Providers sit outside the router so they are not remounted on navigation.
+ * `BrowserRouter` is used because nginx serves `index.html` for unknown paths
+ * (see `web.conf`), which keeps deep links working on refresh.
+ */
+export default function App() {
+  return (
+    <AuthProvider>
+      <SettingsProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </SettingsProvider>
+    </AuthProvider>
+  );
 }
-
-export default App

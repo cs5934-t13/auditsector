@@ -1,50 +1,71 @@
 # AuditSector React client
 
-React + TypeScript, Vite, ESLint, and MUI/Emotion. MUI follows the later
-Amr/Jit agreement, replacing the design document's Tailwind/shadcn choice.
+React + TypeScript and Vite, using the shared MUI theme and application layout.
+MUI with Emotion follows the agreement between Amr and Jit, replacing the design
+document's Tailwind/shadcn choice.
 
-From this directory: `npm ci`, `npm run dev`, `npm run build`, `npm run lint`,
-and `npm test`.
+From this directory:
 
-Vite forwards `/api/*` to Flask at `http://localhost:5000/*`, removing `/api`,
-matching nginx. Flask and MySQL must run separately for real integration.
-The preserved login example remains at `/legacy-login.html`.
+```sh
+npm ci
+npm run dev
+npm run build
+npm run typecheck
+npm run lint
+npm test
+```
 
-## AW-25 integration preparation
+TypeScript checks are split by environment: `tsconfig.app.json` checks browser
+code under `src`, and `tsconfig.node.json` checks `vite.config.ts` with Node types.
+The root `tsconfig.json` references both projects. `npm run typecheck` uses build
+mode to check both, and `npm run build` runs that check before bundling. Both
+projects retain strict checking; build caches are stored under ignored
+`node_modules/.tmp`.
 
-`AddSourcePage` receives the current `user` value from its parent. The standalone
-App reads the username from Jit's existing `auditsector:user` sessionStorage
-format. It does not create a login session, invent an identity, or add a user-ID
-input. When combining with Jit's shell, render this page using his `useAuth()`
-user instead of retaining the standalone App. Signed-out submission is disabled.
-The legacy login example does not populate this storage entry.
+ESLint checks the TypeScript source, React hook usage, Vite configuration, and
+Node-based test/config files. `npm run lint` fails on errors or warnings. Type
+checking remains a separate `npm run typecheck` step.
 
-Submission calls `POST /api/sources` with URL-encoded query parameters `user`
-and `source`, as specified in `docs/api/audit-sources.md`. Frequency is omitted,
-using the documented WEEKLY default until Jit's selector is integrated. Both
-200 (contract) and 201 (AW-22 criterion) are accepted, but a complete returned
-source record is required before showing success. Errors preserve the input;
-network/timeout errors warn that saving could not be confirmed.
+The lint dependencies temporarily override `minimatch` to patched version 11.0.4
+for [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249).
+All current consumers belong to the lint tooling, not the application runtime.
+Revisit this override when the upstream lint packages require a patched release.
 
-### Remaining team dependencies
+The URL-validation tests import TypeScript directly and require a Node.js version
+with native TypeScript type stripping enabled, such as Node 22.18+ or Node 24+.
 
-- Sam must implement AW-22's real POST /sources endpoint.
-- Confirm whether the API's `user` string means username or user ID. Current
-  shared frontend identity supplies username; no ID is fabricated.
-- Resolve the contract's 200 versus AW-22's 201 expectation (client supports both).
-- Reconcile this page with Jit's shell. His current LoginCard checks `valid`,
-  while main's Flask login returns `approved`; that mismatch is not changed here.
-- AW-26 requires submission through the real API, a database record, and the
-  source in a sources list. No GET /sources contract/list exists in the inspected
-  code. Unit tests and simulated responses do not satisfy AW-26.
+Vite serves the frontend at `http://localhost:5173` and forwards `/api/*` unchanged
+to NGINX at `http://localhost:8080`. NGINX removes the `/api` prefix and forwards
+requests to Flask inside the pod. Keep the existing pod running for login and API
+requests. See `../README.md` for the shared frontend development instructions.
 
-## Checks
+## Add Source form (AW-24 and AW-25)
 
-`npm test` verifies URL validation, request encoding, response handling,
-timeouts, and stored-user parsing without contacting a backend.
+Sign in through the shared application and open Audit Reports (`/audits`).
+`ScanFrequencyForm` renders the reusable `AddSourceForm` with the existing
+frequency selector and reads the signed-in state from `useAuth()`.
 
-For real acceptance after dependencies are ready: sign in through the shared
-shell; verify an invalid URL sends no request; submit a unique valid URL; confirm
-a success message, the matching schedules row, and its appearance in the sources
-list; verify a server failure preserves the URL and allows retry. Use a disposable
-test database. Keep AW-25/AW-26 open until the corresponding real checks pass.
+The form supports HTTP(S) URL validation, inline errors, keyboard submission,
+cancellation, and a typed `onSubmit({ sourceUrl })` callback. Controls are disabled
+while a submission is pending or the shared context is not signed in. Validation
+checks URL syntax, not website availability.
+
+Choose a scan frequency and select **Save source**. The client sends `source` and
+`frequency` as query parameters to `POST /api/sources`, with the Flask session
+cookie. It omits the deprecated `user` parameter; Flask determines ownership from
+the session. See `../../../docs/api/audit-sources.md` for the contract.
+
+Success requires `201 Created` and one complete saved-source record. The form
+shows the URL and frequency returned by the server. This confirms the schedule
+was saved; it does not confirm that a scan has run.
+
+Changing the URL or frequency clears the previous success message. Cancel clears
+the URL and feedback and restores the WEEKLY default. A different signed-in user
+gets fresh form state. Failed requests preserve the URL and display an error.
+Network failures, timeouts, and unexpected success responses warn that saving
+could not be confirmed, so check before retrying to avoid duplicate schedules.
+
+`npm test` covers URL validation and API request/response handling with simulated
+responses. Verify the live integration separately by signing in through the shared
+application, saving a uniquely identified test source, checking its owner and
+frequency in MySQL, and deleting only the records created for that check.

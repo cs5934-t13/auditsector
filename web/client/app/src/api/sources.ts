@@ -38,21 +38,29 @@ function isSavedSource(value: unknown): value is SavedSource {
     && typeof value.created_by === 'number'
     && Number.isSafeInteger(value.created_by) && value.created_by > 0
     && typeof value.source_link === 'string' && value.source_link.trim().length > 0
-    && ['HOURLY', 'DAILY', 'WEEKLY', 'MONTHLY'].includes(String(value.scan_frequency))
+    && typeof value.scan_frequency === 'string'
+    && ['HOURLY', 'DAILY', 'WEEKLY', 'MONTHLY'].includes(value.scan_frequency)
 }
 
 export async function createSource(
-  input: { user: string; sourceUrl: string },
+  input: { sourceUrl: string; frequency: SourceFrequency },
   { fetcher = fetch, timeoutMs = 15_000, signal }: CreateSourceOptions = {},
 ): Promise<SavedSource> {
-  const user = input.user.trim()
-  if (!user) throw new SourceApiError('Sign in before adding a source.', { code: 'MISSING_USER' })
   const validationError = getSourceUrlError(input.sourceUrl)
   if (validationError) throw new SourceApiError(validationError, { code: 'INVALID_SOURCE' })
 
-  // The approved contract specifies POST query parameters, not a JSON body.
-  // Omit frequency so AW-73 can add its selector independently (default: WEEKLY).
-  const query = new URLSearchParams({ user, source: input.sourceUrl.trim() })
+  if (!['HOURLY', 'DAILY', 'WEEKLY', 'MONTHLY'].includes(input.frequency)) {
+    throw new SourceApiError(
+      'Frequency must be HOURLY, DAILY, WEEKLY, or MONTHLY.',
+      { code: 'INVALID_FREQUENCY' },
+    )
+  }
+
+  // Flask determines ownership from the session cookie.
+  const query = new URLSearchParams({
+    source: input.sourceUrl.trim(),
+    frequency: input.frequency,
+  })
   const timeoutSignal = AbortSignal.timeout(timeoutMs)
   const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
   let response: Response
@@ -94,8 +102,8 @@ export async function createSource(
     throw new SourceApiError(message, { status: response.status, code })
   }
 
-  // The contract says 200; AW-22's acceptance criterion says 201. Support both.
-  if ((response.status === 200 || response.status === 201)
+  // The contract requires 201 Created and one complete saved-source record.
+  if (response.status === 201
     && isRecord(body) && Array.isArray(body.data)
     && body.data.length === 1 && isSavedSource(body.data[0])) {
     return body.data[0]

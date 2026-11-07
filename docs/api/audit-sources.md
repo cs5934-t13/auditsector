@@ -22,9 +22,12 @@ A username stored in Session Storage does not authenticate the request.
 
 | Parameter | Type | Required | Default | Description |
 | --------- | ---- | -------- | ------- | ----------- |
-| user | string | No | Session username | If supplied, must match the signed-in username. |
+| user | string | No | Session username | Deprecated. Omit it; a nonempty value must match the signed-in username. |
 | source | string | Yes | None | Audit-source URL using HTTP or HTTPS. |
 | frequency | string | No | WEEKLY | HOURLY, DAILY, WEEKLY, or MONTHLY. Case-insensitive. |
+
+An empty `user` parameter is treated as omitted.
+
 ### Browser Example
 
 Run after signing in through the same origin:
@@ -82,13 +85,13 @@ that a scan has run.
 
 **Status:** `403 Forbidden`
 
-Returned when the optional `user` parameter differs from the session username.
+Returned when a nonempty optional `user` parameter differs from the session username.
 
 ```json
 {
   "error": {
     "code": "USER_MISMATCH",
-    "message": "The supplied user must match the signed-in user."
+    "message": "The 'user' parameter must match the signed-in user."
   }
 }
 ```

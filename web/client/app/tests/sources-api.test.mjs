@@ -8,54 +8,65 @@ const source = {
   source_link: 'https://example.com/audit.pdf',
   scan_frequency: 'WEEKLY',
 }
-const input = { user: 'auditor', sourceUrl: source.source_link }
-const json = (body, status = 200) => new Response(JSON.stringify(body), {
+const input = { sourceUrl: source.source_link, frequency: 'WEEKLY' }
+const json = (body, status = 201) => new Response(JSON.stringify(body), {
   status, headers: { 'Content-Type': 'application/json' },
 })
 
-test('POST uses encoded query parameters and the backend frequency default', async () => {
-  const user = 'auditor+team & council'
-  const url = 'https://example.com/audit.pdf?year=2026&tag=IT#page=2'
-  let calls = 0
-  const result = await createSource({ user: `  ${user}  `, sourceUrl: ` ${url} ` }, {
-    fetcher: async (path, options) => {
-      calls++
-      const requestUrl = new URL(path, 'http://localhost')
-      assert.equal(requestUrl.pathname, '/api/sources')
-      assert.equal(requestUrl.searchParams.get('user'), user)
-      assert.equal(requestUrl.searchParams.get('source'), url)
-      assert.deepEqual([...requestUrl.searchParams.keys()], ['user', 'source'])
-      assert.equal(options.method, 'POST')
-      assert.equal(options.body, undefined)
-      assert.equal(options.credentials, 'same-origin')
-      assert.equal(options.headers.Accept, 'application/json')
-      assert.ok(options.signal instanceof AbortSignal)
-      return json({ data: [{ ...source, source_link: url }] })
-    },
-  })
-  assert.equal(calls, 1)
-  assert.equal(result.source_link, url)
-})
-
-for (const status of [200, 201]) {
-  test(`accepts a complete saved-source record with status ${status}`, async () => {
-    assert.deepEqual(await createSource(input, {
-      fetcher: async () => json({ data: [source] }, status),
-    }), source)
+for (const frequency of ['HOURLY', 'DAILY', 'WEEKLY', 'MONTHLY']) {
+  test(`POST encodes the URL and ${frequency} frequency using session credentials`, async () => {
+    const url = 'https://example.com/audit.pdf?year=2026&tag=IT#page=2'
+    const saved = { ...source, source_link: url, scan_frequency: frequency }
+    let calls = 0
+    const result = await createSource({ sourceUrl: ` ${url} `, frequency }, {
+      fetcher: async (path, options) => {
+        calls++
+        const requestUrl = new URL(path, 'http://localhost')
+        assert.equal(requestUrl.pathname, '/api/sources')
+        assert.equal(requestUrl.searchParams.has('user'), false)
+        assert.equal(requestUrl.searchParams.get('source'), url)
+        assert.equal(requestUrl.searchParams.get('frequency'), frequency)
+        assert.deepEqual([...requestUrl.searchParams.keys()], ['source', 'frequency'])
+        assert.equal(options.method, 'POST')
+        assert.equal(options.body, undefined)
+        assert.equal(options.credentials, 'same-origin')
+        assert.equal(options.headers.Accept, 'application/json')
+        assert.ok(options.signal instanceof AbortSignal)
+        return json({ data: [saved] })
+      },
+    })
+    assert.equal(calls, 1)
+    assert.deepEqual(result, saved)
   })
 }
 
-for (const invalid of [
-  { user: '', sourceUrl: source.source_link },
-  { user: '   ', sourceUrl: source.source_link },
-  { user: 'auditor', sourceUrl: 'hello' },
-  { user: 'auditor', sourceUrl: 'ftp://example.com' },
+test('accepts a complete saved-source record with status 201', async () => {
+  assert.deepEqual(await createSource(input, {
+    fetcher: async () => json({ data: [source] }),
+  }), source)
+})
+
+test('rejects status 200 even with a complete saved-source record', async () => {
+  await assert.rejects(createSource(input, {
+    fetcher: async () => json({ data: [source] }, 200),
+  }), (error) => error instanceof SourceApiError && error.status === 200
+    && error.code === 'UNEXPECTED_RESPONSE' && error.message.includes('may have been saved'))
+})
+
+for (const [invalid, code] of [
+  [{ ...input, sourceUrl: '' }, 'INVALID_SOURCE'],
+  [{ ...input, sourceUrl: '   ' }, 'INVALID_SOURCE'],
+  [{ ...input, sourceUrl: 'hello' }, 'INVALID_SOURCE'],
+  [{ ...input, sourceUrl: 'ftp://example.com' }, 'INVALID_SOURCE'],
+  [{ ...input, frequency: 'ARCHIVE' }, 'INVALID_FREQUENCY'],
+  [{ ...input, frequency: '' }, 'INVALID_FREQUENCY'],
+  [{ sourceUrl: source.source_link }, 'INVALID_FREQUENCY'],
 ]) {
   test(`does not send invalid input ${JSON.stringify(invalid)}`, async () => {
     let called = false
     await assert.rejects(createSource(invalid, {
       fetcher: async () => { called = true; return json({ data: [source] }) },
-    }), SourceApiError)
+    }), (error) => error instanceof SourceApiError && error.code === code)
     assert.equal(called, false)
   })
 }
@@ -67,6 +78,13 @@ test('preserves structured server validation errors', async () => {
     } }, 400),
   }), (error) => error instanceof SourceApiError && error.status === 400
     && error.code === 'INVALID_SOURCE' && error.message === 'This source URL is not supported.')
+})
+
+test('handles the Flask authentication-required response', async () => {
+  await assert.rejects(createSource(input, {
+    fetcher: async () => json({ status: 'failed', reason: 'authentication required' }, 401),
+  }), (error) => error instanceof SourceApiError && error.status === 401
+    && error.message.includes('not authorized'))
 })
 
 for (const [status, message] of [
@@ -87,6 +105,8 @@ for (const body of [
   { data: [{ schedule_id: 1 }] },
   { data: [{ ...source, schedule_id: 0 }] },
   { data: [{ ...source, created_by: '3' }] },
+  { data: [{ ...source, scan_frequency: 'ARCHIVE' }] },
+  { data: [{ ...source, scan_frequency: ['WEEKLY'] }] },
 ]) {
   test(`does not claim success for malformed data ${JSON.stringify(body)}`, async () => {
     await assert.rejects(createSource(input, {
@@ -98,7 +118,7 @@ for (const body of [
 
 test('does not claim success for non-JSON success', async () => {
   await assert.rejects(createSource(input, {
-    fetcher: async () => new Response('<html>OK</html>', { status: 200 }),
+    fetcher: async () => new Response('<html>OK</html>', { status: 201 }),
   }), (error) => error.code === 'UNEXPECTED_RESPONSE')
 })
 

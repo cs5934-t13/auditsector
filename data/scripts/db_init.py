@@ -5,9 +5,16 @@ from pathlib import Path
 import pymysql
 from pymysql.constants import CLIENT
 
-HOST = os.environ.get("DB_HOST", "127.0.0.1")
+HOST = os.environ.get("DB_HOST", "")
 DB_NAME = os.environ.get("DB_NAME", "auditsector")
-SQL_FILES = ["init_users.sql", "init_schedules.sql", "init_audits.sql"]
+
+SQL_FILES = [
+    "init_users.sql",
+    "init_schedules.sql",
+    "init_audits.sql",
+    "init_settings.sql",
+    "init_fetches.sql",
+]
 
 if os.environ.get("LOAD_DUMMY_DATA") == "true":
     SQL_FILES.append("init_data.sql")
