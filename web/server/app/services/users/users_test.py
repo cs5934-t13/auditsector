@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from pymysql import IntegrityError
 from testing import containers
 
 from users.users import Users
@@ -87,8 +88,100 @@ class TestAddUser:
         user = users.get_user(2)
         assert user["first_name"] == "Real"
 
+    def test_duplicate_email(self, users):
+        with pytest.raises(IntegrityError):
+            users.add_user(
+                first_name="Real",
+                last_name="Name",
+                email="my@email.com",
+                username="realname2",
+                password="abc123",
+                role="ADMIN",
+                status="ACTIVE",
+            )
+
+    def test_missing_first_name(self, users):
+        with pytest.raises(ValueError):
+            users.add_user(
+                first_name="",
+                last_name="Name",
+                email="my2@email.com",
+                username="realname3",
+                password="abc123",
+                role="ADMIN",
+                status="ACTIVE",
+            )
+
+    def test_missing_last_name(self, users):
+
+        with pytest.raises(ValueError):
+            users.add_user(
+                first_name="First",
+                last_name="",
+                email="my3@email.com",
+                username="realname4",
+                password="abc1",
+                role="ADMIN",
+                status="ACTIVE",
+            )
+
+    def test_missing_email(self, users):
+
+        with pytest.raises(ValueError):
+            users.add_user(
+                first_name="First",
+                last_name="Last",
+                email="",
+                username="realname4",
+                password="abc1",
+                role="ADMIN",
+                status="ACTIVE",
+            )
+
     def test_missing_username(self, users):
-        assert False
+
+        with pytest.raises(ValueError):
+            users.add_user(
+                first_name="First",
+                last_name="Last",
+                email="missing_username@me.com",
+                username="",
+                password="abc1",
+                role="ADMIN",
+                status="ACTIVE",
+            )
 
     def test_missing_password(self, users):
-        assert False
+
+        with pytest.raises(ValueError):
+            users.add_user(
+                first_name="First",
+                last_name="Last",
+                email="missing-password@me.com",
+                username="realname4",
+                password="",
+                role="ADMIN",
+                status="ACTIVE",
+            )
+
+
+
+class TestRemoveUser:
+    def test_remove_invalid_user(self, users):
+        assert not users.remove_user(3)
+
+
+    def test_remove_valid_user(self, users):
+        assert users.remove_user(1)
+
+        user = users.get_user(1)
+        assert user is None
+
+class TestUpdateUser:
+    def test_valid_update(self, users):
+        users.update_user(2, first_name="NewName")
+
+        assert users.get_user(2)["first_name"] == "NewName"
+
+    def test_invalid_update(self, users):
+        assert not users.update_user(5, last_name="I don't exist")
