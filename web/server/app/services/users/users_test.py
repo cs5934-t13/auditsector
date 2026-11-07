@@ -31,6 +31,7 @@ def create_users_table(connection):
         cur.execute(create_query)
         cur.execute(insert_query)
 
+
 @pytest.fixture(scope="module", autouse=True)
 def users(request):
     container = containers.DatabaseContainer()
@@ -40,15 +41,11 @@ def users(request):
     connection.commit()
 
     os.environ["MYSQL_ROOT_PASSWORD"] = "test"
-    users = Users(port=4321);
-
-
+    users = Users(port=4321)
     yield users
 
     container.stop_mysql()
     os.unsetenv("MYSQL_ROOT_PASSWORD")
-
-
 
 
 def test_test_runner():
@@ -62,22 +59,36 @@ class TestGetUsers:
 
 
 class TestGetUser:
-    def test_valid_user(self):
-        assert False
+    def test_valid_user(self, users):
+        user = users.get_user(1)
+        assert user["first_name"] == "John"
 
-    def test_invalid_request(self):
-        assert False
+    def test_invalid_request(self, users):
+        with pytest.raises(TypeError):
+            users.get_user()
 
-    def test_not_found(self):
-        assert False
+    def test_not_found(self, users):
+        user = users.get_user(2)
+        assert user is None
 
 
 class TestAddUser:
-    def test_add_valid_user(self):
+    def test_add_valid_user(self, users):
+        users.add_user(
+            first_name="Real",
+            last_name="Name",
+            email="my@email.com",
+            username="realname",
+            password="abc2",
+            role="ADMIN",
+            status="ACTIVE",
+        )
+
+        user = users.get_user(2)
+        assert user["first_name"] == "Real"
+
+    def test_missing_username(self, users):
         assert False
 
-    def test_missing_username(self):
-        assert False
-
-    def test_missing_password(self):
+    def test_missing_password(self, users):
         assert False

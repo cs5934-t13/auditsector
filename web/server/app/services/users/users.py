@@ -35,55 +35,55 @@ class Users:
             raise
 
     def get_user(self, user_id):
-        query = (
-            """
+        query = f"""
             SELECT *
             FROM users
-            WHERE user_id=%s;
-            """,
-            (user_id,),
-        )
+            WHERE user_id={user_id};
+            """
+
         try:
             conn = self.get_db_connection()
             with conn, conn.cursor() as cur:
                 cur.execute(query)
                 return cur.fetchone()
-        except pymysql.MySQLError:
-            return None
+        except pymysql.MySQLError as err:
+            print(f"Unexpected {err=}, {type(err)=}")
+            raise
 
     def add_user(self, first_name, last_name, email, username, password, role, status):
-        query = (
-            """
-            INSERT INTO users
-            VALUES
-                first_name=%s,
-                last_name=%s,
-                email=%s,
-                username=%s,
-                password_hash=%s,
-                user_role=%s,
-                user_status=%s
-                created_at=NOW();
-            """,
-            (
+        query = f"""
+            INSERT INTO users (
                 first_name,
                 last_name,
                 email,
                 username,
-                PasswordHasher.hash(password),
-                role,
-                status,
-            ),
-        )
+                password_hash,
+                user_role,
+                user_status,
+                created_at
+                )
+            VALUES (
+                '{first_name}',
+                '{last_name}',
+                '{email}',
+                '{username}',
+                '{PasswordHasher().hash(password=password)}',
+                '{role}',
+                '{status}',
+                NOW()
+                );
+            """
 
         try:
             conn = self.get_db_connection()
 
             with conn, conn.cursor() as cur:
                 cur.execute(query)
+                conn.commit()
 
-        except pymysql.MySQLError:
-            return None
+        except pymysql.MySQLError as err:
+            print(f"Unexpected {err=}, {type(err)=}")
+            raise
 
     def remove_user(self, user_id):
         conn = self.get_db_connection()
