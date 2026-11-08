@@ -6,6 +6,7 @@
 
 # useful for handling different item types with a single interface
 from scrapy.pipelines.files import FilesPipeline
+from ai.pipeline import process_audit
 
 
 class FetcherPipeline:
@@ -18,3 +19,16 @@ class PdfPipeline(FilesPipeline):
         # Currently hard-coded to Portland, OR URLs
         filename = request.url.split("/")[-3]
         return f"{filename}.pdf"
+
+class SummarizeTagPipeline:
+    def process_item(self, item):
+        audits = []
+
+        for file in item["files"]:
+            path = file["path"]
+
+            audit = process_audit(path)
+
+            audits.append(audit)
+
+        return item
