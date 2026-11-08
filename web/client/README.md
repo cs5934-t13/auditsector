@@ -63,6 +63,8 @@ app/
     │   ├── layout.ts       # Shared spacing / grid / heading constants
     │   ├── messages.ts     # Fallback copy (organization name, reset message)
     │   ├── navigation.ts   # Public ("About") vs app navigation
+    │   ├── recentAudits.ts # Placeholder report rows + tag lookups
+    │   ├── tags.ts         # Seed tag set (open: users can add/remove tags)
     │   └── users.ts        # Seed rows for the Manage Users screen (client-side only)
     ├── hooks/
     │   └── useAppSettings.tsx # SettingsProvider / useAppSettings
@@ -70,7 +72,8 @@ app/
     │   ├── LandingPage.tsx      # Signed out: sign-in + About (eagerly loaded)
     │   ├── HomePage.tsx         # Signed in: overview (lazy)
     │   ├── AuditReportsPage.tsx # Signed in: reports + scan frequency form (lazy)
-    │   ├── CategoriesPage.tsx   # Signed in: report categories (lazy)
+    │   ├── TagsPage.tsx         # Signed in: tag index, links to /tag/<slug> (lazy)
+    │   ├── TagPage.tsx          # Signed in: reports for one tag, /tag/<slug> (lazy)
     │   ├── SettingsPage.tsx     # Signed in: settings, admin section (lazy)
     │   └── ManageUsersPage.tsx  # Admin only: user table (lazy)
     └── components/
@@ -83,6 +86,8 @@ app/
         ├── UserTable.tsx         # ADMIN: user list (renders content/users.ts seed data)
         ├── ScanFrequencyForm.tsx # Adds a source with a scan frequency (POST /api/sources)
         ├── ScanFrequencySelect.tsx # Frequency dropdown, options from content/frequencies.ts
+        ├── AuditReportsTable.tsx # Read-only report grid; links each tag to /tag/<slug>
+        ├── TagLinks.tsx          # Inline, navigable tag links
         ├── FeatureGrid.tsx       # FeatureCard.tsx  # Marketing/feature tiles
         └── PageSection.tsx       # Prose.tsx  # SectionPanel.tsx  # Layout primitives
 ```
@@ -91,6 +96,42 @@ app/
 components, so either can be reused (or swapped) without touching the other.
 `PageSection`, `SectionPanel` and `Prose` are the shared spacing/typography
 primitives used by every page, so section rhythm stays consistent.
+
+## Tags
+
+`content/tags.ts` lists the **seed** tags. The tag set is open — the database is
+seeded with these ten, and users will be able to add and remove tags later — so
+this file is the initial set and display reference, **not** a whitelist.
+
+`listTags()` in `content/recentAudits.ts` builds the index with `tagIndex()`:
+seed tags first in the order below, then any tag that exists only on a report,
+alphabetically with a zero count. A tag added at runtime therefore appears as
+soon as it is attached to a report, and its `/tag/<slug>` URL resolves, with no
+code change.
+
+| Tag | URL |
+|---|---|
+| Inventory | `/tag/inventory` |
+| Fixed Assets | `/tag/fixed-assets` |
+| Payroll and Benefits | `/tag/payroll-and-benefits` |
+| Accounts Receivable | `/tag/accounts-receivable` |
+| Accounts Payable and Vendors | `/tag/accounts-payable-and-vendors` |
+| Human Resources | `/tag/human-resources` |
+| Capital Projects | `/tag/capital-projects` |
+| Grant Oversight | `/tag/grant-oversight` |
+| Information Technology | `/tag/information-technology` |
+| Regulatory Compliance | `/tag/regulatory-compliance` |
+
+Slugs are derived by `tagSlug()` in `utils/tags.ts` (lowercase, non-alphanumeric
+runs collapsed to hyphens, diacritics folded), which is also how tags are matched
+case-insensitively when resolving a URL.
+
+`RecentAudit.tags` is `readonly string[]`, not a union of the seed names, so
+report data is not restricted to the seed list. Unrecognised slugs still render
+the "Tag not found" state.
+
+To change the seed set, edit `content/tags.ts`. Add/remove-tag UI will need the
+backend endpoints; until then the seed list is the only guaranteed set.
 
 ## Backend settings
 
@@ -142,7 +183,7 @@ Navigation is driven by `navFor(isAuthenticated)` in `content/navigation.ts`:
 | State | Navigation shown | Route |
 |---|---|---|
 | Signed out | `About` only | `/` → `LandingPage` (sign-in form + About) |
-| Signed in | `Home`, `Audit Reports`, `Categories`, `Settings` | `/` redirects to `/home` |
+| Signed in | `Home`, `Audit Reports`, `Tags`, `Settings` | `/` redirects to `/home` |
 | Signed in as `ADMIN` | same, plus `Settings → Manage users` | `/settings/users` |
 
 Routes are guarded in `AppRoutes.tsx`, not just hidden by the nav:

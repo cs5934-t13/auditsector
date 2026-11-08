@@ -48,9 +48,9 @@ export const HOME_SIDEBAR: readonly HomeSidebarItem[] = [
     path: ROUTES.auditReports,
   },
   {
-    label: 'Categories',
+    label: 'Tags',
     description: 'See how reports are grouped by topic.',
-    path: ROUTES.categories,
+    path: ROUTES.tags,
   },
   {
     label: 'Settings & help',

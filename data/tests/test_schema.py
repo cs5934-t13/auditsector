@@ -55,6 +55,38 @@ def test_foreign_keys_exist(cur):
     assert cur.fetchall(), "expected at least one foreign key"
 
 
+# Seed tags from init_tag_data.sql. Order matters: it is the display order the
+# client uses on /tags, so this guards against the two lists drifting apart.
+EXPECTED_SEED_TAGS = [
+    "Inventory",
+    "Fixed Assets",
+    "Payroll and Benefits",
+    "Accounts Receivable",
+    "Accounts Payable and Vendors",
+    "Human Resources",
+    "Capital Projects",
+    "Grant Oversight",
+    "Information Technology",
+    "Regulatory Compliance",
+]
+
+
+def test_seed_tags_present(cur):
+    cur.execute("SELECT name FROM tags ORDER BY tag_id")
+    found = [r["name"] for r in cur.fetchall()]
+
+    # Assert the seed tags are present rather than asserting list equality:
+    # the tag set is open, so a database may legitimately contain tags added
+    # by users on top of these.
+    for tag in EXPECTED_SEED_TAGS:
+        assert tag in found
+
+
+def test_tag_names_are_unique(cur):
+    cur.execute("SELECT name, COUNT(*) AS n FROM tags GROUP BY name HAVING n > 1")
+    assert cur.fetchall() == []
+
+
 def test_duplicate_user_rejected(cur):
     cur.execute("""
         INSERT INTO users (first_name, last_name, email, username, password_hash, user_role, user_status) 
