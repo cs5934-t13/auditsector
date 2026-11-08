@@ -85,8 +85,8 @@ cp secrets.yaml.template secrets.yaml
 # then edit secrets.yaml and replace each placeholder individually
 ```
 7. Add the secrets to podman with `podman kube play secrets.yaml`
-   - `podman secret ls` should list `mysql_root_password` **and**
-     `flask_secret_key`. A leftover placeholder in the template makes
+   - `podman secret ls` should list `mysql-root-password` **and**
+     `flask-secret-key`. A leftover placeholder in the template makes
      `kube play` create only one of them, and the server then exits with
      `KeyError: 'FLASK_SECRET_KEY'`.
 8. Remove any pod left over from an earlier run (name conflict), then run the pod
