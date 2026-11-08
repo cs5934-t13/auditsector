@@ -52,6 +52,7 @@ export default function LoginCard() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const isLoginDisabled = !username || !password || submitting;
   const [result, setResult] = useState<LoginResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -97,7 +98,7 @@ export default function LoginCard() {
       sx={{ p: { xs: 3, md: 4 }, maxWidth: 440, width: '100%' }}
     >
       {/*
-        The page's h1 already announces "Sign in to AuditSector", so this title
+        The page's h1 already announces "Sign in to Audit Sector", so this title
         is styled text rather than a heading to avoid a redundant h2. The
         section keeps an accessible name via aria-labelledby.
       */}
@@ -111,7 +112,7 @@ export default function LoginCard() {
         Sign in
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Use your AuditSector credentials to continue.
+        Use your Audit Sector credentials to continue.
       </Typography>
 
       <Box component="form" onSubmit={handleSubmit} noValidate>
@@ -146,7 +147,7 @@ export default function LoginCard() {
               type="submit"
               variant="contained"
               size="large"
-              disabled={submitting}
+              disabled={isLoginDisabled}
               sx={{ flexGrow: 1 }}
             >
               {submitting ? 'Signing in…' : 'Sign in'}
@@ -156,11 +157,11 @@ export default function LoginCard() {
               type="button"
               onClick={openResetDialog}
               aria-haspopup="dialog"
-              underline="hover"
               sx={{
                 alignSelf: { xs: 'flex-start', sm: 'center' },
                 whiteSpace: 'nowrap',
                 fontWeight: 600,
+                fontSize: '0.75rem',
               }}
             >
               Forgot password?

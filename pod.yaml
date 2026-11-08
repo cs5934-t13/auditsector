@@ -36,7 +36,7 @@ spec:
         - name: FLASK_SECRET_KEY
           valueFrom:
             secretKeyRef:
-              name: flask_secret_key
+              name: flask-secret-key
               key: secret_key
     - args: # Database (MySQL)
         - mysqld
@@ -44,7 +44,7 @@ spec:
       name: db
       volumeMounts:
         - mountPath: /var/lib/mysql
-          name: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187-pvc
+          name: db-volume
       env:
         - name: MYSQL_ROOT_PASSWORD
           valueFrom:
@@ -56,6 +56,12 @@ spec:
           hostPort: 3306
     - image: localhost/services:latest
       name: services
+      env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-root-password
+              key: mysql_password
     - image: localhost/data:latest
       name: data
       env:
@@ -68,6 +74,6 @@ spec:
           value: "true"
 
   volumes:
-    - name: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187-pvc
+    - name: db-volume
       persistentVolumeClaim:
-        claimName: 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187
+        claimName: db-volume
