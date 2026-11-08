@@ -10,5 +10,4 @@ from dataclasses import dataclass
 class FetcherItem:
     # define the fields for your item here like:
     # name: str | None = None
-    file_
     pass
