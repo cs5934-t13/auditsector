@@ -64,11 +64,11 @@ export default function HomePage() {
               </Button>
               <Button
                 component={RouterLink}
-                to={ROUTES.categories}
+                to={ROUTES.tags}
                 variant="outlined"
                 size="large"
               >
-                Browse categories
+                Browse tags
               </Button>
             </Stack>
             

@@ -12,6 +12,9 @@ SQL_FILES = [
     "init_users.sql",
     "init_schedules.sql",
     "init_audits.sql",
+    # Runs after init_audits.sql creates the `tags` table. The tag set is seed
+    # data, not demo data, so every deployment gets it.
+    "init_tag_data.sql",
     "init_settings.sql",
     "init_fetches.sql",
 ]
