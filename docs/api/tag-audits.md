@@ -52,6 +52,7 @@ Results are ordered by:
       "report_date": "2026-09-15",
       "scanned_at": "2026-09-30T14:25:00Z",
       "source_url": "https://example.gov/audits/procurement-2026.pdf",
+      "risk_level": "HIGH",
       "tags": ["Procurement", "Regulatory Compliance"]
     }
   ],
@@ -66,6 +67,10 @@ Results are ordered by:
 
 `tags` carries every tag on each report, so rows can link to the report's other
 tags without a second request.
+
+`risk_level` is one of `INFO`, `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`
+(`audit_headers.risk_level`), or `null` for a report that has not been
+classified yet.
 
 ## Empty Response
 

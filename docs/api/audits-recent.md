@@ -36,7 +36,8 @@ Results are ordered by:
       "auditing_office": "Office of Internal Audit",
       "report_date": "2026-09-15",
       "scanned_at": "2026-09-30T14:25:00Z",
-      "source_url": "https://example.gov/audits/procurement-2026.pdf"
+      "source_url": "https://example.gov/audits/procurement-2026.pdf",
+      "risk_level": "HIGH"
     }
   ],
   "pagination": {
@@ -47,6 +48,18 @@ Results are ordered by:
   }
 }
 ```
+
+### Fields
+
+| Field | Type | Meaning |
+|---|---|---|
+| `audit_id` | integer | Stable report identifier. |
+| `title` | string | Report title. |
+| `auditing_office` | string | Office that published the report. |
+| `report_date` | date string | Publication date, `YYYY-MM-DD`. |
+| `scanned_at` | timestamp | When the scan stored this report (UTC). |
+| `source_url` | string | Link to the published report. |
+| `risk_level` | enum or null | One of `INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, matching `audit_headers.risk_level`. `null` means the report is scanned but not yet classified; the client renders it as "Not rated". |
 
 
 ## Empty Response
