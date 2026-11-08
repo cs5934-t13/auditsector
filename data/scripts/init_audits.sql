@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS audit_headers(
     title       VARCHAR(255) NOT NULL,
     audit_date  DATETIME NOT NULL,
     risk_level  ENUM('INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL') NULL,
-    run_status  ENUM('PENDING', 'RUNNING', 'COMPLETED', 'FAILED') DEFAULT 'PENDING',
+    run_status  ENUM('PENDING', 'RUNNING', 'COMPLETED', 'FAILED') DEFAULT 'PENDING' NOT NULL,
     summary     TEXT NULL,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_audit_schedule
