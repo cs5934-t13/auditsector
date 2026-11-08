@@ -32,5 +32,22 @@ class Tags:
             print(f"Unexpected {err=}, {type(err)=}")
             raise
 
-    def get_tag(id):
-        return
+    def get_tag(self, tag_id):
+
+        query = """
+            SELECT *
+            FROM audit_tags AS at
+            WHERE at.tag_id = %s
+            JOIN audit_headers AS a
+                WHERE at.audit_id = a.audit_id
+            JOIN tags AS t
+                WHERE t.tag_id = %s
+            """
+
+        try:
+            with self.get_db_connection() as conn, conn.cursor() as cur:
+                cur.execute(query, (tag_id,))
+                return cur.fetchall()
+        except pymysql.MySQLError as err:
+            print(f"Unexpected {err=}, {type(err)=}")
+            raise
