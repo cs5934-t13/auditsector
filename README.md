@@ -10,20 +10,29 @@
 └── docs/api: API contracts
 ```
 
-## Roles and the seeded account
+## Roles and seeded accounts
 
 Users have a `user_role` of `ADMIN` or `ANALYST` and a `user_status` of `ACTIVE`
 or `INACTIVE`. Only `ADMIN` users can change organization settings.
 
 With `LOAD_DUMMY_DATA=true` (the default in `pod.yaml`), `data/scripts/init_data.sql`
-seeds one administrator:
+seeds three accounts:
 
-| Username | Password | Role |
-|---|---|---|
-| `ferguszo` | `abc123` | `ADMIN` |
+| Username | Password | Role | Status |
+|---|---|---|---|
+| `ferguszo` | `abc123` | `ADMIN` | `ACTIVE` |
+| `jsmith` | `abc123` | `ANALYST` | `ACTIVE` |
+| `jdoe` | `abc123` | `ANALYST` | `INACTIVE` |
 
-The password is a development value for an Argon2 hash in the seed file. Change
-it before deploying anywhere real.
+All three share the same development password, which is the plaintext for one
+Argon2 hash reused across the seed rows. Change it before deploying anywhere
+real.
+
+`ACTIVE` accounts can sign in. `jdoe` exists to exercise the inactive path:
+`POST /login` rejects it with `403` and `"reason": "account is inactive"`, even
+though the password is correct. Use `jsmith` to see the app as a non-admin
+(no Administration section on Settings, no Manage Users), and `ferguszo` for the
+admin views.
 
 ## Development requirements
 
