@@ -1,6 +1,5 @@
 # Application Layer
 
-<<<<<<< HEAD
 The `services` container is a long-running worker placeholder. `Containerfile`
 builds from `ghcr.io/astral-sh/uv:debian-slim`, copies the whole directory to
 `/services`, and runs `services/test/test.py`.
@@ -28,7 +27,6 @@ services/
 When the scanning workers are implemented, they belong here: this layer is meant
 to read due rows from `schedules` and process each `source_link` at its
 `scan_frequency`.
-=======
 
 ## AI Audit Processing Pipeline
 
@@ -84,4 +82,3 @@ Do not commit API keys or credentials to the repository.
 - The pipeline does not yet store results in MySQL.
 - The scraper must supply a local PDF path.
 ```
->>>>>>> efaa54cd368583ff5a13bc4894529bbf6e297657
