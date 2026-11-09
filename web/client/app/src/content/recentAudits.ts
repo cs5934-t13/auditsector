@@ -11,6 +11,7 @@ import {
   tagIndex,
   type TagCount,
 } from '../utils/tags';
+import type { RiskLevel } from '../utils/risk';
 import { SEED_TAGS, SEED_TAG_NAMES } from './tags';
 
 export interface RecentAudit {
@@ -28,6 +29,13 @@ export interface RecentAudit {
    * placeholder data reads without repeating string literals.
    */
   tags: readonly string[];
+  /**
+   * Classified risk level, mirroring `audit_headers.risk_level`.
+   *
+   * `null` means the report has been scanned but not yet classified, which the
+   * UI renders as "Not rated" rather than hiding the row.
+   */
+  riskLevel: RiskLevel | null;
 }
 
 /** Placeholder rows, newest first. */
@@ -37,6 +45,7 @@ export const RECENT_AUDITS: readonly RecentAudit[] = [
     date: '2026-12-01',
     title: '2024 Annual Surveillance Technology Usage Review',
     tags: [SEED_TAGS.informationTechnology, SEED_TAGS.regulatoryCompliance],
+    riskLevel: 'MEDIUM',
   },
   {
     id: 2,
@@ -44,6 +53,7 @@ export const RECENT_AUDITS: readonly RecentAudit[] = [
     title:
       'Audit of Comcast’s Compliance with Seattle’s Cable Customer Bill of Rights',
     tags: [SEED_TAGS.regulatoryCompliance],
+    riskLevel: 'HIGH',
   },
   {
     id: 3,
@@ -51,6 +61,7 @@ export const RECENT_AUDITS: readonly RecentAudit[] = [
     title:
       'Asset Management: Strategic and coordinated approach needed to take on City’s long-standing issues',
     tags: [SEED_TAGS.fixedAssets, SEED_TAGS.capitalProjects],
+    riskLevel: 'CRITICAL',
   },
 ] as const;
 
