@@ -52,7 +52,6 @@ Results are ordered by:
       "report_date": "2026-09-15",
       "scanned_at": "2026-09-30T14:25:00Z",
       "source_url": "https://example.gov/audits/procurement-2026.pdf",
-      "risk_level": "HIGH",
       "tags": ["Procurement", "Regulatory Compliance"]
     }
   ],
