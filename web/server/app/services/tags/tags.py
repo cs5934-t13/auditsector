@@ -35,13 +35,13 @@ class Tags:
     def get_tag(self, tag_id):
 
         query = """
-            SELECT *
-            FROM audit_tags AS at
-            WHERE at.tag_id = %s
-            JOIN audit_headers AS a
-                WHERE at.audit_id = a.audit_id
-            JOIN tags AS t
-                WHERE t.tag_id = %s
+            SELECT a.*, t.name
+            FROM audit_tags at
+            INNER JOIN audit_headers a
+                ON at.audit_id = a.audit_id
+            INNER JOIN tags t
+                ON t.tag_id = at.tag_id
+            WHERE at.tag_id = %s;
             """
 
         try:

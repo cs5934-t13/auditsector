@@ -7,7 +7,7 @@ import pymysql
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from flask import Flask, request, session
-from tags import Tags
+from services.tags.tags import Tags
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
