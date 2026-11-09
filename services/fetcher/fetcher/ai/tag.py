@@ -4,8 +4,8 @@ import os
 
 import requests
 
-API_URL = "https://llm-api.arc.vt.edu/api/v1/chat/completions"
-API_KEY_ENV = "VT_LLM_API_KEY"
+API_URL = os.getenv("LLM_API_URL")
+API_KEY = os.getenv("LLM_API_KEY")
 
 TAG_DEFINITIONS = {
     "Inventory": {
@@ -54,7 +54,7 @@ TAG_DEFINITIONS = {
 def generate_tags(audit_text):
     """Generate predefined audit categories using the ARC LLM."""
 
-    api_key = os.getenv(API_KEY_ENV)
+    api_key = API_KEY
 
     if not api_key:
         raise ValueError(

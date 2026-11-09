@@ -54,7 +54,7 @@ spec:
       ports:
         - containerPort: 3306
           hostPort: 3306
-    - image: localhost/services:latest
+    - image: localhost/services:latest # Services
       name: services
       env:
         - name: MYSQL_ROOT_PASSWORD
@@ -62,7 +62,17 @@ spec:
             secretKeyRef:
               name: mysql-root-password
               key: mysql_password
-    - image: localhost/data:latest
+        - name: LLM_API_URL
+          valueFrom:
+            secretKeyRef:
+              name: llm-api
+              key: llm_api_url
+        - name: LLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: llm-api
+              key: llm_api_key
+    - image: localhost/data:latest # Data initialization
       name: data
       env:
         - name: MYSQL_ROOT_PASSWORD

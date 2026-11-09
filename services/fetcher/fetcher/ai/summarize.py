@@ -3,14 +3,14 @@ import os
 
 import requests
 
-API_URL = "https://llm-api.arc.vt.edu/api/v1/chat/completions"
-API_KEY_ENV = "VT_LLM_API_KEY"
+API_URL = os.getenv("LLM_API_URL")
+API_KEY = os.getenv("LLM_API_KEY")
 
 
 def generate_summary(audit_text):
     """Generate a four-sentence summary of an audit report."""
 
-    api_key = os.getenv(API_KEY_ENV)
+    api_key = API_KEY
 
     if not api_key:
         raise ValueError("VT_LLM_API_KEY environment variable is not set")

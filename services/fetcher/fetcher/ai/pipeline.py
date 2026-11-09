@@ -14,9 +14,7 @@ def process_audit(pdf_path):
     and predefined classification tags.
     """
 
-    print(pdf_path)
     pdf_path = Path(pdf_path)
-    print(pdf_path)
 
     if not pdf_path.is_file():
         raise FileNotFoundError(
