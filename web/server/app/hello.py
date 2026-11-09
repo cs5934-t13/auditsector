@@ -117,6 +117,40 @@ def error_response(code: str, message: str, status: int):
     """Consistent error envelope used by the newer endpoints."""
     return {"error": {"code": code, "message": message}}, status
 
+def get_recent_audits_pagination():
+    page = int(request.args.get("page", "1"))
+    limit = int(request.args.get("limit", "20"))
+
+    if page < 1 or not 1 <= limit <= 100:
+        raise ValueError("Invalid pagination")
+
+    return page, limit
+
+def fetch_recent_audits(page, limit):
+    offset = (page - 1) * limit
+
+    conn = get_db_connection()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(*) AS total_items
+                FROM audit_headers;
+            """)
+            total_items = cur.fetchone()["total_items"]
+
+            if offset >= total_items:
+                return [], total_items
+
+            cur.execute("""
+                SELECT audit_id, title, audit_date, created_at
+                FROM audit_headers
+                ORDER BY created_at DESC, audit_id DESC
+                LIMIT %s OFFSET %s;
+            """, (limit, offset))
+
+            rows = cur.fetchall()
+
+    return rows, total_items
 
 def _wants_json() -> bool:
     """True when the request looks like an API call rather than a page load.
@@ -490,3 +524,44 @@ def update_settings():
         )
 
     return {"data": settings}, 200
+
+@app.route("/audits/recent", methods=["GET"])
+@login_required
+def get_recent_audits():
+    try:
+        page, limit = get_recent_audits_pagination()
+    except ValueError:
+        return error_response(
+            "INVALID_PAGINATION",
+            "page must be at least 1 and limit must be between 1 and 100",
+            400,
+        )
+
+    try:
+        rows, total_items = fetch_recent_audits(page, limit)
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to retrieve recent audits",
+            500,
+        )
+
+    data = [
+        {
+            "audit_id": row["audit_id"],
+            "title": row["title"],
+            "audit_date": row["audit_date"].isoformat(timespec="seconds"),
+            "created_at": row["created_at"].isoformat(timespec="seconds"),
+        }
+        for row in rows
+    ]
+
+    return {
+        "data": data,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total_items": total_items,
+            "total_pages": (total_items + limit - 1) // limit,
+        },
+    }, 200
