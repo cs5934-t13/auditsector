@@ -60,7 +60,8 @@ DOWNLOAD_DELAY = 1
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
     #     "fetcher.pipelines.FetcherPipeline": 300,
-    "scrapy.pipelines.files.FilesPipeline": 1,
+    "scrapy.pipelines.files.FilesPipeline": 100,
+    "fetcher.pipelines.SummarizeTagPipeline": 200,
 }
 FILES_STORE = "./files"
 
