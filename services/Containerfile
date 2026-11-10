@@ -1,12 +1,6 @@
-
 FROM ghcr.io/astral-sh/uv:debian-slim
-
-WORKDIR /services
-
-COPY requirements.txt /services/requirements.txt
-
-RUN uv pip install --system -r /services/requirements.txt
-
-COPY . /services
-
-CMD ["uv", "run", "--no-project", "--no-managed-python", "/services/test/test.py"]
+COPY ./ /services
+RUN apt-get update 
+WORKDIR /services/fetcher
+RUN uv sync 
+CMD ["uv", "run", "/services/test/test.py"]
