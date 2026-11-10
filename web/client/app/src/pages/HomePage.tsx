@@ -9,6 +9,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import HomeSidebar from '../components/HomeSidebar';
 import PageSection from '../components/PageSection';
 import RecentAuditsGrid from '../components/RecentAuditsGrid';
+import RiskLevelChart from '../components/RiskLevelChart';
 import ScanActivityChart from '../components/ScanActivityChart';
 import { SCROLL_OFFSET } from '../content/layout';
 import { useAuth } from '../auth/AuthContext';
@@ -64,13 +65,21 @@ export default function HomePage() {
               </Button>
               <Button
                 component={RouterLink}
-                to={ROUTES.categories}
+                to={ROUTES.tags}
                 variant="outlined"
                 size="large"
               >
-                Browse categories
+                Browse tags
               </Button>
             </Stack>
+            
+            <Box
+              component="section"
+              id="risk-levels"
+              sx={{ scrollMarginTop: SCROLL_OFFSET }}
+            >
+              <RiskLevelChart />
+            </Box>
             
             <Box
               component="section"
@@ -79,6 +88,7 @@ export default function HomePage() {
             >
               <ScanActivityChart />
             </Box>
+
           </Stack>
 
           <HomeSidebar />

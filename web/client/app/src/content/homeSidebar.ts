@@ -38,6 +38,11 @@ export const HOME_SIDEBAR: readonly HomeSidebarItem[] = [
     anchor: 'scan-activity',
   },
   {
+    label: 'Risk levels',
+    description: 'How report severity is trending over time.',
+    anchor: 'risk-levels',
+  },
+  {
     label: 'Recent audits',
     description: 'The latest reports published by your sources.',
     anchor: 'recent-audits',
@@ -48,9 +53,9 @@ export const HOME_SIDEBAR: readonly HomeSidebarItem[] = [
     path: ROUTES.auditReports,
   },
   {
-    label: 'Categories',
+    label: 'Tags',
     description: 'See how reports are grouped by topic.',
-    path: ROUTES.categories,
+    path: ROUTES.tags,
   },
   {
     label: 'Settings & help',

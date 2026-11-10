@@ -14,7 +14,7 @@ export const publicNav: readonly NavItem[] = [
 export const appNav: readonly NavItem[] = [
   { label: 'Home', path: ROUTES.home },
   { label: 'Audit Reports', path: ROUTES.auditReports },
-  { label: 'Categories', path: ROUTES.categories },
+  { label: 'Tags', path: ROUTES.tags },
   { label: 'Settings', path: ROUTES.settings },
 ] as const;
 
