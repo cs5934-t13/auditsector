@@ -1,13 +1,15 @@
-from flask import Flask, request, session
-from functools import wraps
+import os
 from datetime import timedelta
+from functools import wraps
 from urllib.parse import urlparse
-from werkzeug.exceptions import HTTPException
-from werkzeug.middleware.proxy_fix import ProxyFix
+
 import pymysql
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
-import os
+from flask import Flask, request, session
+from services import users
+from werkzeug.exceptions import HTTPException
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 app.secret_key = os.environ["FLASK_SECRET_KEY"]
@@ -184,15 +186,6 @@ def handle_http_error(error: HTTPException):
     })
     response.content_type = "application/json"
     return response
-
-
-@app.route("/")
-def hello_world():
-    return "<h1>Hello AuditSector!</h1>"
-
-@app.route("/test")
-def test_api():
-    return ["Hello from the server"]
 
 @app.route("/login", methods=["POST"])
 def login_user():
