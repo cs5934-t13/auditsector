@@ -17,7 +17,7 @@ Changes from the original AW-102 contract:
 - Omit `auditing_office` and `source_url`, which the current audit table does not store.
 - Document session authentication and the existing authentication error response.
 
-These changes are proposed for team review as part of AW-103. They change the original scan-date behavior.
+The merged AW-103 implementation uses this definition of recency and these four response fields. AW-105 aligns the example below and identifier type with the current implementation and schema; it does not add response fields.
 
 ## Request
 
@@ -54,13 +54,15 @@ Results are ordered by:
 1. `created_at` in descending order, so the most recently added record appears first.
 2. `audit_id` in descending order when two records have the same `created_at` value.
 
+With UUID identifiers, the second key provides deterministic ordering; it does not imply insertion order within a timestamp tie.
+
 ## Response Fields
 
 Each item in `data` contains:
 
 | Field | JSON Type | Database Source | Description |
 |---|---|---|---|
-| `audit_id` | number | `audit_headers.audit_id` | Audit record identifier. |
+| `audit_id` | string or legacy number | `audit_headers.audit_id` | Opaque record identifier. Current initialization SQL uses a UUID string; older, unmigrated databases return an integer. |
 | `title` | string | `audit_headers.title` | Stored audit title. |
 | `audit_date` | string | `audit_headers.audit_date` | Stored audit date and time. This contract does not establish that it is the publication date. |
 | `created_at` | string | `audit_headers.created_at` | Date and time the audit record was inserted. |
@@ -88,40 +90,28 @@ A page beyond the available results returns `200 OK` with an empty `data` array 
 
 **Status:** `200 OK`
 
+The example shows the last page when 41 records exist and the page size is 20.
+
 ```json
 {
   "data": [
     {
-      "audit_id": 42,
+      "audit_id": "00000000-0000-4000-8000-000000000042",
       "title": "FY 2026 Procurement Audit",
-      "auditing_office": "Office of Internal Audit",
-      "report_date": "2026-09-15",
-      "scanned_at": "2026-09-30T14:25:00Z",
-      "source_url": "https://example.gov/audits/procurement-2026.pdf",
-      "risk_level": "HIGH"
+      "audit_date": "2026-09-15T00:00:00",
+      "created_at": "2026-09-30T14:25:00"
     }
   ],
   "pagination": {
-    "page": 1,
+    "page": 3,
     "limit": 20,
-    "total_items": 47,
+    "total_items": 41,
     "total_pages": 3
   }
 }
 ```
 
-### Fields
-
-| Field | Type | Meaning |
-|---|---|---|
-| `audit_id` | integer | Stable report identifier. |
-| `title` | string | Report title. |
-| `auditing_office` | string | Office that published the report. |
-| `report_date` | date string | Publication date, `YYYY-MM-DD`. |
-| `scanned_at` | timestamp | When the scan stored this report (UTC). |
-| `source_url` | string | Link to the published report. |
-| `risk_level` | enum or null | One of `INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, matching `audit_headers.risk_level`. `null` means the report is scanned but not yet classified; the client renders it as "Not rated". |
-
+An earlier example included office, publication date, scan time, source URL, and risk level. The endpoint does not return those fields; adding them requires a separate backend/contract change.
 
 ## Empty Response
 
@@ -204,4 +194,4 @@ Database credentials, SQL statements, and internal exception details must not ap
 - An empty database returns empty `data` and zero totals.
 - A page beyond the available results returns empty `data` and actual totals.
 - Database retrieval failures return the documented `500` response.
-- The revised definition of recency and reduced response fields are presented for team review in the AW-103 pull request.
+- Examples agree with the four fields returned by the merged AW-103 endpoint.
