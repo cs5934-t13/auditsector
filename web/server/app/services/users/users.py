@@ -35,7 +35,7 @@ class Users:
         query = """
             SELECT *
             FROM users
-            WHERE status="ACTIVE";
+            WHERE user_status="ACTIVE";
             """
         try:
             conn = self.get_db_connection()
@@ -50,7 +50,7 @@ class Users:
         query = """
             SELECT *
             FROM users
-            WHERE user_id=%s AND status="ACTIVE";
+            WHERE user_id=%s AND user_status="ACTIVE";
             """
 
         try:
@@ -115,7 +115,7 @@ class Users:
 
         query = """
             UPDATE users 
-            SET status="INACTIVE"
+            SET user_status="INACTIVE"
             WHERE user_id=%s
         """
 
