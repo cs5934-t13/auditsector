@@ -34,7 +34,8 @@ class Users:
     def get_users(self):
         query = """
             SELECT *
-            FROM users;
+            FROM users
+            WHERE user_status="ACTIVE";
             """
         try:
             conn = self.get_db_connection()
@@ -49,7 +50,7 @@ class Users:
         query = """
             SELECT *
             FROM users
-            WHERE user_id=%s;
+            WHERE user_id=%s AND user_status="ACTIVE";
             """
 
         try:
@@ -113,7 +114,9 @@ class Users:
     def remove_user(self, user_id):
 
         query = """
-            DELETE FROM users WHERE user_id=%s
+            UPDATE users 
+            SET user_status="INACTIVE"
+            WHERE user_id=%s
         """
 
         try:
@@ -167,4 +170,3 @@ class Users:
         except pymysql.MySQLError as err:
             print(f"Unexpected {err=}, {type(err)=}")
             raise
-        return
