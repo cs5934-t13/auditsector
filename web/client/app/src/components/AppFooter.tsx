@@ -14,12 +14,12 @@ import {
 } from '../content/layout';
 import { navFor } from '../content/navigation';
 import { useAuth } from '../auth/AuthContext';
-
-const linkSx = {
-  color: 'text.secondary',
-  fontSize: '0.95rem',
-  '&:hover': { color: 'primary.main' },
-} as const;
+import {
+  BRAND_FONT,
+  BRAND_FONT_WEIGHT,
+  BRAND_LETTER_SPACING,
+  FOOTER_LINK_SX,
+} from '../theme';
 
 /**
  * Application footer with a brand block, navigation, and contact information.
@@ -62,8 +62,18 @@ export default function AppFooter() {
               }}
             >
               <BrandLogo />
-              <Typography variant="h6" component="p" sx={{ fontWeight: 700 }}>
-                AuditSector
+              {/* Same wordmark treatment as the header brand block. */}
+              <Typography
+                variant="h6"
+                component="p"
+                sx={{
+                  fontFamily: BRAND_FONT,
+                  fontWeight: BRAND_FONT_WEIGHT,
+                  letterSpacing: BRAND_LETTER_SPACING,
+                  borderBottom: 1, 
+                }}
+              >
+                Audit Sector
               </Typography>
             </Box>
             <Typography
@@ -83,7 +93,7 @@ export default function AppFooter() {
             <Stack spacing={1} component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
               {navItems.map((item) => (
                 <li key={item.path}>
-                  <Link component={RouterLink} to={item.path} sx={linkSx}>
+                  <Link component={RouterLink} to={item.path} sx={FOOTER_LINK_SX}>
                     {item.label}
                   </Link>
                 </li>
@@ -97,12 +107,12 @@ export default function AppFooter() {
             </Typography>
             <Stack spacing={1} component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
               <li>
-                <Link href="mailto:team@auditsector.example" sx={linkSx}>
+                <Link href="mailto:team@auditsector.example" sx={FOOTER_LINK_SX}>
                   team@auditsector.example
                 </Link>
               </li>
               <li>
-                <Link href="https://github.com/cs5934-t13/auditsector/" sx={linkSx}>
+                <Link href="https://github.com/cs5934-t13/auditsector/" sx={FOOTER_LINK_SX}>
                   Project repository
                 </Link>
               </li>
@@ -118,7 +128,7 @@ export default function AppFooter() {
           justifyContent="space-between"
         >
           <Typography variant="body2" color="text.secondary">
-            &copy; {year} AuditSector. All rights reserved.
+            &copy; {year} Audit Sector. All rights reserved.
           </Typography>
         </Stack>
       </Container>

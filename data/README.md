@@ -46,8 +46,14 @@ Only the `db` container serves MySQL (port `3306`).
 | `init_users.sql` | `users` |
 | `init_schedules.sql` | `schedules` (FK → `users`) |
 | `init_audits.sql` | `audit_headers`, `tags`, `audit_tags` |
+| `init_tag_data.sql` | Seed tags (the initial, open tag set) |
 | `init_settings.sql` | `app_settings` (single row, `settings_id = 1`) |
 | `init_data.sql` | demo rows, including a seeded user for tests |
+
+`init_tag_data.sql` runs on every deployment, not only with
+`LOAD_DUMMY_DATA=true`: the tags are seed data, not demo data. It uses
+`INSERT IGNORE` against the unique `tags.name`, so re-running it never
+duplicates rows and never removes tags users have added.
 
 `init_settings.sql` only creates the table; it inserts no rows. `GET /settings`
 creates the single row from the column defaults on first read, so an empty table

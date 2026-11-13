@@ -85,7 +85,7 @@ export default function AdminSettingsForm() {
         Administrator settings
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        These values are shown to everyone using AuditSector.
+        These values are shown to everyone using Audit Sector.
       </Typography>
 
       <Stack
@@ -100,7 +100,7 @@ export default function AdminSettingsForm() {
           label="Header Text (Locality)"
           value={values.organizationName}
           onChange={setField('organizationName')}
-          helperText="Displayed in the header next to the AuditSector name."
+          helperText="Displayed in the header next to the Audit Sector name."
           fullWidth
           required
         />

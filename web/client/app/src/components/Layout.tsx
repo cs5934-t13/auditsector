@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
+import { alpha } from '@mui/material/styles';
 import AppFooter from './AppFooter';
 import AppHeader from './AppHeader';
 
@@ -36,14 +37,20 @@ export default function Layout() {
   }, [pathname, hash]);
 
   return (
+    // Outer gutter. 
     <Box
       sx={{
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100vh',
+        p: { xs: 1.5, md: 3 },
       }}
     >
-      {/* First focusable element: lets keyboard users bypass the header. */}
+      {/*
+        First focusable element: lets keyboard users bypass the header.
+        It lives outside the framed box so the box's `overflow: clip` cannot
+        hide it once it is focused.
+      */}
       <Box
         component="a"
         href="#main-content"
@@ -66,19 +73,43 @@ export default function Layout() {
         Skip to main content
       </Box>
 
-      <AppHeader />
-
+      {/*
+        Framed shell: a single bordered box wrapping header, main, and footer.
+      */}
       <Box
-        component="main"
-        id="main-content"
-        ref={mainRef}
-        tabIndex={-1}
-        sx={{ flexGrow: 1 }}
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          flexGrow: 1,
+          width: '100%',
+          maxWidth: 'lg',
+          mx: 'auto',
+          minWidth: 0,
+          border: 1,
+          borderColor: 'divider',
+          overflow: 'clip',
+          bgcolor: 'background.paper',
+          boxShadow: (theme) =>
+            `0 1px 2px ${alpha(theme.palette.text.primary, 0.06)}, 0 16px 40px -16px ${alpha(
+              theme.palette.text.primary,
+              0.18,
+            )}`,
+        }}
       >
-        <Outlet />
-      </Box>
+        <AppHeader />
 
-      <AppFooter />
+        <Box
+          component="main"
+          id="main-content"
+          ref={mainRef}
+          tabIndex={-1}
+          sx={{ flexGrow: 1 }}
+        >
+          <Outlet />
+        </Box>
+
+        <AppFooter />
+      </Box>
     </Box>
   );
 }

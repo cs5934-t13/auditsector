@@ -4,6 +4,7 @@
  * These values are used until the backend supplies settings via
  * `GET /api/settings` (see `src/api/settings.ts`), and remain the fallback if
  * that request fails.
+ * TODO: Replace once backend settings are fully implemented
  */
 
 /** Fallback organization name shown in the header. */
@@ -15,4 +16,4 @@ export const PASSWORD_RESET_MESSAGE =
 
 /** Fallback text shown above the generic help section. */
 export const GENERAL_HELP =
-  'For help using AuditSector, review the guidance below or contact your administrator.';
+  'For help using Audit Sector, review the guidance below or contact your administrator.';
