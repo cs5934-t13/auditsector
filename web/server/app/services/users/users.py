@@ -113,7 +113,9 @@ class Users:
     def remove_user(self, user_id):
 
         query = """
-            DELETE FROM users WHERE user_id=%s
+            UPDATE users 
+            SET status="INACTIVE"
+            WHERE user_id=%s
         """
 
         try:
@@ -167,4 +169,3 @@ class Users:
         except pymysql.MySQLError as err:
             print(f"Unexpected {err=}, {type(err)=}")
             raise
-        return
