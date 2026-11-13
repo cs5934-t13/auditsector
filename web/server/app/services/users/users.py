@@ -34,7 +34,8 @@ class Users:
     def get_users(self):
         query = """
             SELECT *
-            FROM users;
+            FROM users
+            WHERE status="ACTIVE";
             """
         try:
             conn = self.get_db_connection()
@@ -49,7 +50,7 @@ class Users:
         query = """
             SELECT *
             FROM users
-            WHERE user_id=%s;
+            WHERE user_id=%s AND status="ACTIVE";
             """
 
         try:

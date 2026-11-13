@@ -66,7 +66,7 @@ class TestGetUser:
 
     def test_invalid_request(self, users):
         with pytest.raises(TypeError):
-            users.get_user()
+            users.get_user()  # type: ignore[call-arg]
 
     def test_not_found(self, users):
         user = users.get_user(2)
