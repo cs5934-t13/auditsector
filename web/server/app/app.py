@@ -7,6 +7,7 @@ import pymysql
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from flask import Flask, request, session
+from services.tags.tags import Tags
 from services import users
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -517,6 +518,19 @@ def update_settings():
         )
 
     return {"data": settings}, 200
+
+
+@app.route("/tag", methods=["GET"])
+@login_required
+def get_tags():
+    return Tags().get_tags()
+
+
+@app.route("/tag/<tag_id>", methods=["GET"])
+@login_required
+def get_tag(tag_id):
+    return Tags().get_tag(tag_id)
+
 
 @app.route("/audits/recent", methods=["GET"])
 @login_required
