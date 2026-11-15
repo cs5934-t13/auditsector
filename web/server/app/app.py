@@ -530,6 +530,8 @@ def get_tags():
 @login_required
 def get_tag(tag_id):
     return Tags().get_tag(tag_id)
+
+
 @app.route("/audits/recent", methods=["GET"])
 @login_required
 def get_recent_audits():
