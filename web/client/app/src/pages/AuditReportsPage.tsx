@@ -6,15 +6,17 @@ import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import FeatureCard from '../components/FeatureCard';
 import FeatureGrid from '../components/FeatureGrid';
 import PageSection from '../components/PageSection';
+import RecentReportsTable from '../components/RecentReportsTable';
 import ScanFrequencyForm from '../components/ScanFrequencyForm';
 import SectionPanel from '../components/SectionPanel';
+import { SAMPLE_RECENT_REPORTS } from '../content/recentReports';
 
 const features = [
   {
     icon: <HistoryOutlinedIcon color="primary" fontSize="large" aria-hidden="true" />,
     title: 'Most recent',
     description:
-      'Reports appear newest first, so the latest publication is always at the top of the list.',
+      'Records appear newest first by when they were added to Audit Sector.',
   },
   {
     icon: <ErrorOutlineOutlinedIcon color="primary" fontSize="large" aria-hidden="true" />,
@@ -30,7 +32,7 @@ const features = [
   },
 ];
 
-/** Audit reports: scanning schedule plus the (not yet implemented) report list. */
+/** Audit reports: scan scheduling and a sample-data preview of recent records. */
 export default function AuditReportsPage() {
   return (
     <Container maxWidth="lg">
@@ -58,16 +60,18 @@ export default function AuditReportsPage() {
         <ScanFrequencyForm />
 
         <SectionPanel
-          sx={{
-            mt: 3,
-            borderStyle: 'dashed',
-            textAlign: 'center',
-          }}
+          component="section"
+          aria-labelledby="recent-reports-heading"
+          sx={{ mt: 3, minWidth: 0 }}
         >
-          <Typography variant="body2" color="text.secondary">
-            The paginated report list will appear here once{' '}
-            <code>GET /audits/recent</code> is available.
+          <Typography id="recent-reports-heading" variant="h5" component="h2">
+            Recent reports
           </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
+            Preview with sample records, ordered by when they were added. These
+            are not live audit records.
+          </Typography>
+          <RecentReportsTable rows={SAMPLE_RECENT_REPORTS} />
         </SectionPanel>
       </PageSection>
     </Container>

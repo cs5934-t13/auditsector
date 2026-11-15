@@ -67,6 +67,10 @@ Results are ordered by:
 `tags` carries every tag on each report, so rows can link to the report's other
 tags without a second request.
 
+`risk_level` is one of `INFO`, `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`
+(`audit_headers.risk_level`), or `null` for a report that has not been
+classified yet.
+
 ## Empty Response
 
 A valid tag with no matching reports returns `200 OK` with an empty `data`

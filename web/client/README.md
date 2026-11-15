@@ -64,6 +64,8 @@ app/
     │   ├── messages.ts     # Fallback copy (organization name, reset message)
     │   ├── navigation.ts   # Public ("About") vs app navigation
     │   ├── recentAudits.ts # Placeholder report rows + tag lookups
+    │   ├── riskActivity.ts # Placeholder risk-per-period series for the homepage chart
+    │   ├── riskLevels.ts   # Risk level labels, descriptions, colors
     │   ├── tags.ts         # Seed tag set (open: users can add/remove tags)
     │   └── users.ts        # Seed rows for the Manage Users screen (client-side only)
     ├── hooks/
@@ -86,7 +88,9 @@ app/
         ├── UserTable.tsx         # ADMIN: user list (renders content/users.ts seed data)
         ├── ScanFrequencyForm.tsx # Adds a source with a scan frequency (POST /api/sources)
         ├── ScanFrequencySelect.tsx # Frequency dropdown, options from content/frequencies.ts
-        ├── AuditReportsTable.tsx # Read-only report grid; links each tag to /tag/<slug>
+        ├── AuditReportsTable.tsx # Read-only report grid; risk chip + tags link to /tag/<slug>
+        ├── RiskLevelChip.tsx     # Risk level badge (label + color, never color-only)
+        ├── RiskLevelChart.tsx    # Homepage stacked bar chart: reports per risk level over time
         ├── TagLinks.tsx          # Inline, navigable tag links
         ├── FeatureGrid.tsx       # FeatureCard.tsx  # Marketing/feature tiles
         └── PageSection.tsx       # Prose.tsx  # SectionPanel.tsx  # Layout primitives
@@ -132,6 +136,28 @@ the "Tag not found" state.
 
 To change the seed set, edit `content/tags.ts`. Add/remove-tag UI will need the
 backend endpoints; until then the seed list is the only guaranteed set.
+
+## Risk levels
+
+Risk levels mirror `audit_headers.risk_level`:
+`ENUM('INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL') NULL`.
+
+- `utils/risk.ts` — dependency-free severity logic: order/score (`INFO` = 1 …
+  `CRITICAL` = 5), level normalization (`INFO`/`info`/`INFORMATIONAL`),
+  per-level counting, totals, and averages. Unit-tested in `tests/risk.test.mjs`.
+- `content/riskLevels.ts` — display metadata only: labels ("Medium"), one-line
+  descriptions, and colors.
+- `RecentAudit.riskLevel` is `RiskLevel | null`; `null` renders as "Not rated"
+  rather than hiding the row. The numeric score is derived with `riskScore()`,
+  never stored on the row, so the two cannot drift apart.
+- `AuditReportsTable` shows a **Risk level** column that sorts by severity, with
+  unrated reports below INFO rather than alphabetically scattered.
+- `RiskLevelChart` on the homepage stacks one series per level, so each bar's
+  height is the period's report total and the bands show the mix. Severity is
+  never conveyed by color alone: every chip and tooltip spells out the label.
+
+Placeholder data lives in `content/riskActivity.ts`; the expected endpoint is
+documented in `docs/api/audits-risk-over-time.md`.
 
 ## Backend settings
 

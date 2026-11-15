@@ -1,0 +1,29 @@
+[project]
+name = "app"
+version = "0.1.0"
+description = "Web server back-end for AuditSector API"
+readme = "../README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "argon2-cffi>=25.1.0",
+    "blinker==1.9.0",
+    "cffi==2.1.1",
+    "click==8.5.0",
+    "cryptography==50.0.2",
+    "flask==3.1.3",
+    "itsdangerous==2.2.0",
+    "jinja2==3.1.6",
+    "markupsafe==3.0.4",
+    "pycparser==3.0",
+    "pymysql==1.2.3",
+    "pyopenssl==26.4.0",
+    "werkzeug==3.1.9",
+]
+
+[dependency-groups]
+dev = [
+    "podman>=5.8.0",
+    "pytest>=9.2.0",
+    "pytest-mysql>=5.0.1",
+    "testcontainers[mysql]>=4.15.0",
+]

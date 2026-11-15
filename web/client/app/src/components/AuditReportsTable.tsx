@@ -3,9 +3,11 @@ import Typography from '@mui/material/Typography';
 import type { SxProps, Theme } from '@mui/material/styles';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import SectionPanel from './SectionPanel';
+import RiskLevelChip from './RiskLevelChip';
 import TagLinks from './TagLinks';
 import type { RecentAudit } from '../content/recentAudits';
 import { formatDate } from '../utils/formatDate';
+import { compareRiskLevels } from '../utils/risk';
 import { LINK_ACCENT } from '../theme';
 
 /**
@@ -26,10 +28,19 @@ const columns: GridColDef<RecentAudit>[] = [
     minWidth: 260,
   },
   {
+    field: 'riskLevel',
+    headerName: 'Risk level',
+    width: 124,
+    // Sort by severity (INFO → CRITICAL), not alphabetically, so the most
+    // urgent reports group together. Unrated reports sort below INFO.
+    sortComparator: (a, b) => compareRiskLevels(a, b),
+    renderCell: ({ row }) => <RiskLevelChip level={row.riskLevel} />,
+  },
+  {
     field: 'tags',
     headerName: 'Tags',
     flex: 1,
-    minWidth: 200,
+    minWidth: 170,
     sortable: false,
     renderCell: ({ row }) => <TagLinks tags={row.tags} />,
   },

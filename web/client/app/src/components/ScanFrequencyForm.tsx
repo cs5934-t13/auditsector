@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import { createSource, type SavedSource } from '../api/sources';
+import { useAuth } from '../auth/AuthContext';
 import ScanFrequencySelect from './ScanFrequencySelect';
 import AddSourceForm from './AddSourceForm';
 import SectionPanel from './SectionPanel';
@@ -9,12 +12,21 @@ import {
   type ScanFrequency,
 } from '../content/frequencies';
 
-/**
- * Source URL validation preview with scan-frequency selection.
- * Saving through the API is handled separately in AW-25.
- */
+/** Saves a source and its selected frequency through the authenticated API. */
 export default function ScanFrequencyForm() {
-  const [validatedUrl, setValidatedUrl] = useState('');
+  const { user, isAuthenticated, isChecking } = useAuth();
+
+  // A different signed-in user gets fresh form values and feedback.
+  return (
+    <SourceScheduleForm
+      key={user?.username ?? 'anonymous'}
+      canSubmit={!isChecking && isAuthenticated && Boolean(user)}
+    />
+  );
+}
+
+function SourceScheduleForm({ canSubmit }: { canSubmit: boolean }) {
+  const [savedSource, setSavedSource] = useState<SavedSource | null>(null);
   const [frequency, setFrequency] = useState<ScanFrequency>(
     DEFAULT_SCAN_FREQUENCY,
   );
@@ -38,30 +50,39 @@ export default function ScanFrequencyForm() {
       </Typography>
 
       <Stack spacing={2.5} sx={{ maxWidth: 560 }}>
+        {!canSubmit && (
+          <Alert severity="info">Sign in before adding a source.</Alert>
+        )}
         <AddSourceForm
-          submitLabel="Validate source"
-          onSubmit={({ sourceUrl }) => setValidatedUrl(sourceUrl)}
-          onChange={() => setValidatedUrl('')}
+          disabled={!canSubmit}
+          submitLabel="Save source"
+          onSubmit={async ({ sourceUrl }) => {
+            setSavedSource(null);
+            const result = await createSource({ sourceUrl, frequency });
+            setSavedSource(result);
+          }}
+          onChange={() => setSavedSource(null)}
           onCancel={() => {
-            setValidatedUrl('');
+            setSavedSource(null);
             setFrequency(DEFAULT_SCAN_FREQUENCY);
           }}
-          renderExtraFields={(isSubmitting) => (
+          renderExtraFields={(isDisabled) => (
             <ScanFrequencySelect
               value={frequency}
-              disabled={isSubmitting}
+              disabled={isDisabled}
               onChange={(value) => {
                 setFrequency(value);
-                setValidatedUrl('');
+                setSavedSource(null);
               }}
             />
           )}
         />
 
         <div role="status" aria-live="polite" aria-atomic="true">
-          {validatedUrl && (
-            <Typography sx={{ overflowWrap: 'anywhere' }}>
-              URL format accepted: {validatedUrl}. This source has not been saved.
+          {savedSource && (
+            <Typography color="success.main" sx={{ overflowWrap: 'anywhere' }}>
+              Source saved: {savedSource.source_link}. Scan frequency:{' '}
+              {savedSource.scan_frequency}.
             </Typography>
           )}
         </div>

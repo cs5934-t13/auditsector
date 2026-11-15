@@ -39,21 +39,33 @@ to NGINX at `http://localhost:8080`. NGINX removes the `/api` prefix and forward
 requests to Flask inside the pod. Keep the existing pod running for login and API
 requests. See `../README.md` for the shared frontend development instructions.
 
-## Add Source form (AW-24)
+## Add Source form (AW-24 and AW-25)
 
 Sign in through the shared application and open Audit Reports (`/audits`).
 `ScanFrequencyForm` renders the reusable `AddSourceForm` with the existing
-frequency selector. The shared layout, navigation, authentication, and theme remain
-in place.
+frequency selector and reads the signed-in state from `useAuth()`.
 
 The form supports HTTP(S) URL validation, inline errors, keyboard submission,
-cancellation, and a typed `onSubmit({ sourceUrl })` callback. A pending callback
-disables the controls, and rejection displays a retry message. Validation checks
-URL syntax, not website availability.
+cancellation, and a typed `onSubmit({ sourceUrl })` callback. Controls are disabled
+while a submission is pending or the shared context is not signed in. Validation
+checks URL syntax, not website availability.
 
-The Validate source action only confirms the URL format. It does not save a
-schedule or call the source API. Changing the URL or frequency clears the previous
-confirmation. Cancel clears the URL and feedback and restores the default frequency.
+Choose a scan frequency and select **Save source**. The client sends `source` and
+`frequency` as query parameters to `POST /api/sources`, with the Flask session
+cookie. It omits the deprecated `user` parameter; Flask determines ownership from
+the session. See `../../../docs/api/audit-sources.md` for the contract.
 
-AW-25 will connect this form to the existing `POST /api/sources` endpoint using the
-shared authenticated user context and selected frequency.
+Success requires `201 Created` and one complete saved-source record. The form
+shows the URL and frequency returned by the server. This confirms the schedule
+was saved; it does not confirm that a scan has run.
+
+Changing the URL or frequency clears the previous success message. Cancel clears
+the URL and feedback and restores the WEEKLY default. A different signed-in user
+gets fresh form state. Failed requests preserve the URL and display an error.
+Network failures, timeouts, and unexpected success responses warn that saving
+could not be confirmed, so check before retrying to avoid duplicate schedules.
+
+`npm test` covers URL validation and API request/response handling with simulated
+responses. Verify the live integration separately by signing in through the shared
+application, saving a uniquely identified test source, checking its owner and
+frequency in MySQL, and deleting only the records created for that check.

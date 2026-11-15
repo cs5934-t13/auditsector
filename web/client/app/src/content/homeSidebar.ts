@@ -38,6 +38,11 @@ export const HOME_SIDEBAR: readonly HomeSidebarItem[] = [
     anchor: 'scan-activity',
   },
   {
+    label: 'Risk levels',
+    description: 'How report severity is trending over time.',
+    anchor: 'risk-levels',
+  },
+  {
     label: 'Recent audits',
     description: 'The latest reports published by your sources.',
     anchor: 'recent-audits',

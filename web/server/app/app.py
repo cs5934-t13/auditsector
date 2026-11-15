@@ -8,6 +8,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from flask import Flask, request, session
 from services.tags.tags import Tags
+from services import users
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -27,7 +28,6 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_prefix=1)
 
 VALID_FREQUENCIES = {"HOURLY", "DAILY", "WEEKLY", "MONTHLY"}
-
 
 def get_db_connection():
     return pymysql.connect(
@@ -50,14 +50,11 @@ def _current_role(username):
         conn = get_db_connection()
         with conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
+                cur.execute("""
                     SELECT user_role, user_status
                     FROM users
                     WHERE username = %s;
-                """,
-                    (username,),
-                )
+                """, (username,))
                 return cur.fetchone()
     except pymysql.MySQLError:
         return None
@@ -67,9 +64,11 @@ def login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         if "username" not in session:
-            return {"status": "failed", "reason": "authentication required"}, 401
+            return {
+                "status": "failed",
+                "reason": "authentication required"
+            }, 401
         return f(*args, **kwargs)
-
     return wrapper
 
 
@@ -81,20 +80,25 @@ def admin_required(f):
     demoted or deactivated administrator keep writing until their cookie expired
     (up to PERMANENT_SESSION_LIFETIME).
     """
-
     @wraps(f)
     def wrapper(*args, **kwargs):
         username = session.get("username")
 
         if not username:
-            return {"status": "failed", "reason": "authentication required"}, 401
+            return {
+                "status": "failed",
+                "reason": "authentication required"
+            }, 401
 
         row = _current_role(username)
 
         # Deleted, deactivated, or the lookup failed: no longer an admin.
         if row is None or row["user_status"] != "ACTIVE":
             session.clear()
-            return {"status": "failed", "reason": "authentication required"}, 401
+            return {
+                "status": "failed",
+                "reason": "authentication required"
+            }, 401
 
         if row["user_role"] != "ADMIN":
             # Keep the session; the user may still use the rest of the app.
@@ -102,14 +106,13 @@ def admin_required(f):
             return {
                 "error": {
                     "code": "FORBIDDEN",
-                    "message": "Administrator access is required.",
+                    "message": "Administrator access is required."
                 }
             }, 403
 
         # Keep the snapshot in step with the database for anything that reads it.
         session["role"] = row["user_role"]
         return f(*args, **kwargs)
-
     return wrapper
 
 
@@ -117,6 +120,40 @@ def error_response(code: str, message: str, status: int):
     """Consistent error envelope used by the newer endpoints."""
     return {"error": {"code": code, "message": message}}, status
 
+def get_recent_audits_pagination():
+    page = int(request.args.get("page", "1"))
+    limit = int(request.args.get("limit", "20"))
+
+    if page < 1 or not 1 <= limit <= 100:
+        raise ValueError("Invalid pagination")
+
+    return page, limit
+
+def fetch_recent_audits(page, limit):
+    offset = (page - 1) * limit
+
+    conn = get_db_connection()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(*) AS total_items
+                FROM audit_headers;
+            """)
+            total_items = cur.fetchone()["total_items"]
+
+            if offset >= total_items:
+                return [], total_items
+
+            cur.execute("""
+                SELECT audit_id, title, audit_date, created_at
+                FROM audit_headers
+                ORDER BY created_at DESC, audit_id DESC
+                LIMIT %s OFFSET %s;
+            """, (limit, offset))
+
+            rows = cur.fetchall()
+
+    return rows, total_items
 
 def _wants_json() -> bool:
     """True when the request looks like an API call rather than a page load.
@@ -126,10 +163,9 @@ def _wants_json() -> bool:
     """
     if request.script_root:
         return True
-    return (
-        request.accept_mimetypes.best_match(["application/json", "text/html"])
-        == "application/json"
-    )
+    return request.accept_mimetypes.best_match(
+        ["application/json", "text/html"]
+    ) == "application/json"
 
 
 @app.errorhandler(HTTPException)
@@ -143,27 +179,14 @@ def handle_http_error(error: HTTPException):
     if not _wants_json():
         return response
 
-    response.data = app.json.dumps(
-        {
-            "error": {
-                "code": error.name.upper().replace(" ", "_"),
-                "message": error.description,
-            }
+    response.data = app.json.dumps({
+        "error": {
+            "code": error.name.upper().replace(" ", "_"),
+            "message": error.description,
         }
-    )
+    })
     response.content_type = "application/json"
     return response
-
-
-@app.route("/")
-def hello_world():
-    return "<h1>Hello AuditSector!</h1>"
-
-
-@app.route("/test")
-def test_api():
-    return ["Hello from the server"]
-
 
 @app.route("/login", methods=["POST"])
 def login_user():
@@ -172,33 +195,42 @@ def login_user():
     password = data.get("password")
 
     if not username or not password:
-        return {"status": "failed", "reason": "username and password are required"}, 401
+        return {
+            "status": "failed",
+            "reason": "username and password are required"
+        }, 401
 
     conn = get_db_connection()
     with conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT password_hash, user_role, user_status
                 FROM users
                 WHERE username = %s;
-            """,
-                (username,),
-            )
+            """, (username,))
             row = cur.fetchone()
 
     if row is None:
-        return {"status": "failed", "reason": "invalid credentials"}, 401
+        return {
+            "status": "failed",
+            "reason": "invalid credentials"
+        }, 401
 
     try:
         PasswordHasher().verify(row["password_hash"], password)
     except (VerificationError, InvalidHashError):
-        return {"status": "failed", "reason": "invalid credentials"}, 401
+        return {
+            "status": "failed",
+            "reason": "invalid credentials"
+        }, 401
 
     # An inactive account must not be able to sign in, even with valid
     # credentials.
     if row["user_status"] != "ACTIVE":
-        return {"status": "failed", "reason": "account is inactive"}, 403
+        return {
+            "status": "failed",
+            "reason": "account is inactive"
+        }, 403
 
     session.clear()
     session["username"] = username
@@ -211,14 +243,16 @@ def login_user():
         "status": "approved",
         "reason": "user is authorized",
         "username": username,
-        "role": row["user_role"],
+        "role": row["user_role"]
     }
 
 
 @app.route("/logout", methods=["POST"])
 def logout():
     session.clear()
-    return {"status": "logged out"}
+    return {
+        "status": "logged out"
+    }
 
 
 @app.route("/session", methods=["GET"])
@@ -282,7 +316,7 @@ def add_source():
         return {
             "error": {
                 "code": "MISSING_SOURCE",
-                "message": "No source given in API call.",
+                "message": "No source given in API call."
             }
         }, 400
 
@@ -290,7 +324,7 @@ def add_source():
         return {
             "error": {
                 "code": "INVALID_SOURCE",
-                "message": "Source must be a valid HTTP or HTTPS URL.",
+                "message": "Source must be a valid HTTP or HTTPS URL."
             }
         }, 400
 
@@ -298,7 +332,7 @@ def add_source():
         return {
             "error": {
                 "code": "INVALID_FREQUENCY",
-                "message": "Frequency must be HOURLY, DAILY, WEEKLY, or MONTHLY.",
+                "message": "Frequency must be HOURLY, DAILY, WEEKLY, or MONTHLY."
             }
         }, 400
 
@@ -307,14 +341,11 @@ def add_source():
 
         with conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
+                cur.execute("""
                     SELECT user_id
                     FROM users
                     WHERE username = %s;
-                """,
-                    (user,),
-                )
+                """, (user,))
 
                 row = cur.fetchone()
 
@@ -322,23 +353,20 @@ def add_source():
                     return {
                         "error": {
                             "code": "INVALID_USER",
-                            "message": "Given user not found in database.",
+                            "message": "Given user not found in database."
                         }
                     }, 400
 
                 user_id = row["user_id"]
 
-                cur.execute(
-                    """
+                cur.execute("""
                     INSERT INTO schedules (
                         created_by,
                         source_link,
                         scan_frequency
                     )
                     VALUES (%s, %s, %s);
-                """,
-                    (user_id, source, frequency),
-                )
+                """, (user_id, source, frequency))
 
                 schedule_id = cur.lastrowid
                 conn.commit()
@@ -349,7 +377,7 @@ def add_source():
                     "schedule_id": schedule_id,
                     "created_by": user_id,
                     "source_link": source,
-                    "scan_frequency": frequency,
+                    "scan_frequency": frequency
                 }
             ]
         }, 201
@@ -358,7 +386,7 @@ def add_source():
         return {
             "error": {
                 "code": "INTERNAL_SERVER_ERROR",
-                "message": "Unable to connect to or update the database.",
+                "message": "Unable to connect to or update the database."
             }
         }, 500
 
@@ -502,3 +530,43 @@ def get_tags():
 @login_required
 def get_tag(tag_id):
     return Tags().get_tag(tag_id)
+@app.route("/audits/recent", methods=["GET"])
+@login_required
+def get_recent_audits():
+    try:
+        page, limit = get_recent_audits_pagination()
+    except ValueError:
+        return error_response(
+            "INVALID_PAGINATION",
+            "page must be at least 1 and limit must be between 1 and 100",
+            400,
+        )
+
+    try:
+        rows, total_items = fetch_recent_audits(page, limit)
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to retrieve recent audits",
+            500,
+        )
+
+    data = [
+        {
+            "audit_id": row["audit_id"],
+            "title": row["title"],
+            "audit_date": row["audit_date"].isoformat(timespec="seconds"),
+            "created_at": row["created_at"].isoformat(timespec="seconds"),
+        }
+        for row in rows
+    ]
+
+    return {
+        "data": data,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total_items": total_items,
+            "total_pages": (total_items + limit - 1) // limit,
+        },
+    }, 200
