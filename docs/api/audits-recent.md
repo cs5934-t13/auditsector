@@ -2,26 +2,87 @@
 
 ## Purpose
 
-Returns a paginated list of the most recently scanned audit reports, ordered from newest to oldest.
+Returns a paginated list of the most recently added audit records, ordered by record creation time from newest to oldest.
+
+“Recent” refers to `audit_headers.created_at`, the time the database record was inserted. It does not establish when the report was scanned or when processing completed.
+
+## Contract Revision
+
+This revision aligns the endpoint with the current `audit_headers` database schema.
+
+Changes from the original AW-102 contract:
+
+- Replace scan-time ordering with record-creation-time ordering.
+- Return `audit_date` and `created_at` instead of `report_date` and `scanned_at`.
+- Omit `auditing_office` and `source_url`, which the current audit table does not store.
+- Document session authentication and the existing authentication error response.
+
+These changes are proposed for team review as part of AW-103. They change the original scan-date behavior.
 
 ## Request
 
 **Method:** `GET`  
 **Path:** `/audits/recent`
 
+### Authentication
+
+Requires an authenticated Flask session.
+
+The client must send the session cookie established by a successful login. A username supplied by the client does not authenticate the request.
+
+Results are not filtered by user or organization for the MVP.
+
 ### Query Parameters
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---:|---:|---|
 | `page` | integer | No | `1` | Page number to return. Must be 1 or greater. |
-| `limit` | integer | No | `20` | Number of audits per page. Must be between 1 and 100. |
+| `limit` | integer | No | `20` | Number of audit records per page. Must be between 1 and 100. |
+
+An omitted parameter uses its default. A supplied value that is empty, is not an integer, or is outside its allowed range returns `400 Bad Request`.
+
+### Example Request
+
+```http
+GET /audits/recent?page=1&limit=20
+```
 
 ## Sort Order
 
 Results are ordered by:
 
-1. `scanned_at` in descending order, so the newest scan appears first.
-2. `audit_id` in descending order when two audits have the same `scanned_at` value.
+1. `created_at` in descending order, so the most recently added record appears first.
+2. `audit_id` in descending order when two records have the same `created_at` value.
+
+## Response Fields
+
+Each item in `data` contains:
+
+| Field | JSON Type | Database Source | Description |
+|---|---|---|---|
+| `audit_id` | number | `audit_headers.audit_id` | Audit record identifier. |
+| `title` | string | `audit_headers.title` | Stored audit title. |
+| `audit_date` | string | `audit_headers.audit_date` | Stored audit date and time. This contract does not establish that it is the publication date. |
+| `created_at` | string | `audit_headers.created_at` | Date and time the audit record was inserted. |
+
+Date and time values use `YYYY-MM-DDTHH:MM:SS`.
+
+Both columns are MySQL `DATETIME` values without timezone information. Responses preserve the stored values without adding a UTC suffix or timezone offset.
+
+## Pagination
+
+The response includes:
+
+| Field | Description |
+|---|---|
+| `page` | Requested page number, or the default. |
+| `limit` | Requested page size, or the default. |
+| `total_items` | Total number of audit records before pagination. |
+| `total_pages` | `total_items / limit`, rounded up; zero when no records exist. |
+
+The offset is `(page - 1) * limit`.
+
+A page beyond the available results returns `200 OK` with an empty `data` array and the actual pagination totals.
 
 ## Successful Response
 
@@ -36,7 +97,8 @@ Results are ordered by:
       "auditing_office": "Office of Internal Audit",
       "report_date": "2026-09-15",
       "scanned_at": "2026-09-30T14:25:00Z",
-      "source_url": "https://example.gov/audits/procurement-2026.pdf"
+      "source_url": "https://example.gov/audits/procurement-2026.pdf",
+      "risk_level": "HIGH"
     }
   ],
   "pagination": {
@@ -48,10 +110,22 @@ Results are ordered by:
 }
 ```
 
+### Fields
+
+| Field | Type | Meaning |
+|---|---|---|
+| `audit_id` | integer | Stable report identifier. |
+| `title` | string | Report title. |
+| `auditing_office` | string | Office that published the report. |
+| `report_date` | date string | Publication date, `YYYY-MM-DD`. |
+| `scanned_at` | timestamp | When the scan stored this report (UTC). |
+| `source_url` | string | Link to the published report. |
+| `risk_level` | enum or null | One of `INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, matching `audit_headers.risk_level`. `null` means the report is scanned but not yet classified; the client renders it as "Not rated". |
+
 
 ## Empty Response
 
-If no audits exist, the endpoint still returns `200 OK` with an empty `data` array.
+If no audit records exist, the endpoint returns `200 OK` with an empty `data` array.
 
 ```json
 {
@@ -64,11 +138,25 @@ If no audits exist, the endpoint still returns `200 OK` with an empty `data` arr
   }
 }
 ```
+
 ## Error Responses
+
+### Authentication Required
+
+Returns `401 Unauthorized` when the request has no authenticated Flask session. Authentication is checked before pagination validation.
+
+The response follows the existing `login_required` decorator:
+
+```json
+{
+  "status": "failed",
+  "reason": "authentication required"
+}
+```
 
 ### Invalid Pagination
 
-Returns `400 Bad Request` when `page` or `limit` is outside its allowed range.
+Returns `400 Bad Request` when a supplied `page` or `limit` is empty, is not an integer, or is outside its allowed range.
 
 ```json
 {
@@ -78,6 +166,7 @@ Returns `400 Bad Request` when `page` or `limit` is outside its allowed range.
   }
 }
 ```
+
 ### Internal Server Error
 
 Returns `500 Internal Server Error` when the server cannot retrieve the audit records.
@@ -90,19 +179,29 @@ Returns `500 Internal Server Error` when the server cannot retrieve the audit re
   }
 }
 ```
-## Questions for Team Review
 
-1. Do the proposed response fields match the audit database schema?
-2. Should this endpoint require an authenticated user?
-3. Should results be scoped to the authenticated user’s organization?
-4. Is `scanned_at` the correct definition of “recent,” rather than `report_date`?
-5. Is page-based pagination preferred, or should the API use cursor-based pagination?
+Database credentials, SQL statements, and internal exception details must not appear in the response.
+
+## MVP Scope
+
+- Read audit records from `audit_headers`.
+- Require session authentication.
+- Return records across users without organization filtering.
+- Include records regardless of `run_status`.
+- Use record creation time to determine recency.
+- Do not return auditing office, report URL, summaries, or tags.
 
 ## Acceptance Criteria
 
-- The endpoint path and HTTP method are defined.
-- Results are sorted by scan date from newest to oldest.
-- Pagination inputs and defaults are defined.
-- Successful, empty, and error responses are documented.
-- Example request and response data are included.
-- The contract is reviewed by the team before implementation begins.
+- Authenticated requests return `200 OK` with `data` and `pagination`.
+- Unauthenticated requests return the documented `401` response.
+- Default pagination is page 1 with a limit of 20.
+- Invalid pagination returns the documented `400` response.
+- Results are ordered by `created_at DESC`, then `audit_id DESC`.
+- Each result contains exactly the four documented response fields.
+- Date and time values use the documented format without an assumed timezone.
+- Pagination totals reflect the full audit record count.
+- An empty database returns empty `data` and zero totals.
+- A page beyond the available results returns empty `data` and actual totals.
+- Database retrieval failures return the documented `500` response.
+- The revised definition of recency and reduced response fields are presented for team review in the AW-103 pull request.

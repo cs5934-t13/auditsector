@@ -5,10 +5,22 @@ from pathlib import Path
 import pymysql
 from pymysql.constants import CLIENT
 
-HOST = os.environ.get("DB_HOST", "127.0.0.1")
+HOST = os.environ.get("DB_HOST", "")
 DB_NAME = os.environ.get("DB_NAME", "auditsector")
-SQL_FILES = ["init_users.sql", "init_schedules.sql", "init_audits.sql"]
 
+SQL_FILES = [
+    "init_users.sql",
+    "init_schedules.sql",
+    "init_audits.sql",
+    # Runs after init_audits.sql creates the `tags` table. The tag set is seed
+    # data, not demo data, so every deployment gets it.
+    "init_tag_data.sql",
+    "init_settings.sql",
+    "init_fetches.sql",
+]
+
+if os.environ.get("LOAD_DUMMY_DATA") == "true":
+    SQL_FILES.append("init_data.sql")
 
 def connect_db(database=None, retries=30, delay=2):
     for attempt in range(retries):
@@ -44,6 +56,7 @@ def init_db(sql_dir):
                 while cur.nextset():
                     pass
         conn.commit()
+    
 
 if __name__ == "__main__":
-    init_db("/app/sql")
+    init_db("/sql")
