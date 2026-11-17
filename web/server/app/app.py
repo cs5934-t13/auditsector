@@ -526,6 +526,29 @@ def get_tags():
     return Tags().get_tags()
 
 
+@app.route("/tag", methods=["POST"])
+@login_required
+def create_tag():
+    data = request.get_json(silent=True)
+    name = data.get("name") if isinstance(data, dict) else None
+    if not isinstance(name, str) or not 1 <= len(name.strip()) <= 100:
+        return error_response(
+            "INVALID_TAG",
+            "name must be a nonblank string of at most 100 characters",
+            400,
+        )
+
+    try:
+        tag = Tags().add_tag(name.strip())
+    except pymysql.IntegrityError as error:
+        if error.args and error.args[0] == 1062:
+            return error_response("TAG_EXISTS", "A tag with this name already exists", 409)
+        return error_response("INTERNAL_SERVER_ERROR", "Unable to create tag", 500)
+    except pymysql.MySQLError:
+        return error_response("INTERNAL_SERVER_ERROR", "Unable to create tag", 500)
+    return {"data": tag}, 201
+
+
 @app.route("/tag/<tag_id>", methods=["GET"])
 @login_required
 def get_tag(tag_id):
