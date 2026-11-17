@@ -69,3 +69,13 @@ could not be confirmed, so check before retrying to avoid duplicate schedules.
 responses. Verify the live integration separately by signing in through the shared
 application, saving a uniquely identified test source, checking its owner and
 frequency in MySQL, and deleting only the records created for that check.
+
+
+## Live tag catalog (AW-91)
+
+`/tags` loads the authenticated `GET /api/tag` catalog. It shows only stored tags,
+with loading, empty, retry, and expired-session states. The API has no report
+counts, so the catalog displays no estimated/sample totals. Links use numeric
+tag IDs to avoid name-slug collisions; existing unambiguous name links still work.
+Tag details use `GET /api/tag/<tag_id>` and display its stored title, risk level,
+and scan status. Neither page substitutes sample reports or invents publication dates.

@@ -27,7 +27,7 @@ class Tags:
         try:
             with self.get_db_connection() as conn, conn.cursor() as cur:
                 cur.execute(query)
-                return cur.fetchall()
+                return list(cur.fetchall())
         except pymysql.MySQLError as err:
             print(f"Unexpected {err=}, {type(err)=}")
             raise
@@ -47,7 +47,7 @@ class Tags:
         try:
             with self.get_db_connection() as conn, conn.cursor() as cur:
                 cur.execute(query, (tag_id,))
-                return cur.fetchall()
+                return list(cur.fetchall())
         except pymysql.MySQLError as err:
             print(f"Unexpected {err=}, {type(err)=}")
             raise

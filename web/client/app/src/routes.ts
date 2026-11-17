@@ -14,7 +14,7 @@ export const ROUTES = {
   tags: '/tags',
   settings: '/settings',
   manageUsers: '/settings/users',
-  /** Tag detail page. Use `tagPath` to build a concrete URL. */
+  /** Tag detail page. Live catalog links use IDs; legacy name links still resolve. */
   tag: '/tag/:tagname',
 } as const;
 
@@ -22,3 +22,8 @@ export type RoutePath = (typeof ROUTES)[keyof typeof ROUTES];
 
 // Re-exported so callers have a single import point for routing concerns.
 export { tagPath };
+
+/** Build a stable link for a tag returned by the API. */
+export function tagIdPath(tagId: number): string {
+  return `/tag/${tagId}`;
+}
