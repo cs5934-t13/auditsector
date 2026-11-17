@@ -69,3 +69,31 @@ could not be confirmed, so check before retrying to avoid duplicate schedules.
 responses. Verify the live integration separately by signing in through the shared
 application, saving a uniquely identified test source, checking its owner and
 frequency in MySQL, and deleting only the records created for that check.
+
+
+## Live recent reports (AW-105)
+
+The Recent reports section on `/audits` requests `GET /api/audits/recent` using
+the Flask session cookie. It displays Title, Audit date, and Added from the four
+response fields documented in `../../../docs/api/audits-recent.md`. UUID strings
+and legacy numeric identifiers are supported as row keys. Stored date/time values
+are displayed without an assumed timezone or conversion.
+
+Pagination is handled by the server, starting at page 1 with 20 records. The grid
+offers 10, 20, or 50 records per page; changing the size returns to page 1. The
+client preserves server order (`created_at DESC, audit_id DESC`). Pending requests
+are cancelled when the page changes or the section unmounts, and stale responses
+are ignored. If records disappear and the requested page is no longer available,
+the section loads the last available page.
+
+Loading feedback is limited to the table. A successful empty response shows
+"No audit records to display." Errors show an error message and Retry; a 401
+instead offers Sign in again through the shared authentication context. Other
+page content, including Add Source, stays mounted. Sample records are no longer
+used as a fallback.
+
+`node --test tests/recent-audits-api.test.mjs` covers requests, pagination,
+UUID/legacy identifiers, response validation, errors, timeout, and cancellation.
+Browser verification should also cover page navigation, page-size changes,
+loading, empty results, Retry, expired sessions, and navigation away during a
+request. Use controlled records and remove only the records created for testing.
