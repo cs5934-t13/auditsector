@@ -1,59 +1,51 @@
-"""Connect scheduler timing logic to database storage."""
+"""Single-worker polling loop; MySQL coordinates overlapping worker instances."""
 
-from collections.abc import Callable
 import logging
 import time
 from datetime import datetime, timezone
 
-from services.scheduler.repository import (
-    connect_db,
-    load_schedules,
-    save_next_run,
-)
-from services.scheduler.scheduler import Schedule, trigger_due_scans
+from services.scheduler.repository import connect_db, load_schedules, save_run
+from services.scheduler.scheduler import trigger_due_scans
 
 logger = logging.getLogger(__name__)
+LOCK_NAME = "auditsector.scheduler"
 
-def run_once(
-    connection,
-    now: datetime,
-    trigger_scan: Callable[[Schedule], None],
-) -> None:
-    """Load schedules and process those that are due."""
-    schedules = load_schedules(connection)
 
-    def persist_next_run(schedule_id: int, next_run_at: datetime):
-        save_next_run(connection, schedule_id, next_run_at)
+def run_once(connection, now, trigger_scan):
+    with connection.cursor() as cur:
+        cur.execute("SELECT GET_LOCK(%s, 0) AS acquired", (LOCK_NAME,))
+        if cur.fetchone()["acquired"] != 1:
+            return 0
+    try:
+        schedules = load_schedules(connection)
+        connection.commit()  # End the read snapshot before a potentially long crawl.
+        return trigger_due_scans(
+            schedules,
+            now,
+            trigger_scan,
+            save_result=lambda sid, started, status, next_run: save_run(
+                connection, sid, started, status, next_run
+            ),
+            clock=lambda: datetime.now(timezone.utc),
+        )
+    finally:
+        with connection.cursor() as cur:
+            cur.execute("SELECT RELEASE_LOCK(%s)", (LOCK_NAME,))
 
-    trigger_due_scans(
-        schedules,
-        now,
-        trigger_scan,
-        persist_next_run,
-    )
-def run_forever(
-    trigger_scan: Callable[[Schedule], None],
-    poll_seconds: float = 60,
-) -> None:
-    """Check schedules repeatedly until interrupted."""
+
+def run_forever(trigger_scan, poll_seconds=60):
     if poll_seconds <= 0:
         raise ValueError("poll_seconds must be greater than zero")
-
     try:
         while True:
             try:
                 connection = connect_db()
                 try:
-                    run_once(
-                        connection,
-                        datetime.now(timezone.utc),
-                        trigger_scan,
-                    )
+                    run_once(connection, datetime.now(timezone.utc), trigger_scan)
                 finally:
                     connection.close()
             except Exception:
                 logger.exception("Scheduler pass failed")
-
             time.sleep(poll_seconds)
     except KeyboardInterrupt:
         logger.info("Scheduler stopped")

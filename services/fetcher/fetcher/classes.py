@@ -12,8 +12,7 @@ class Audit:
         run_status=None,
         summary=None,
     ):
-
-        self.audit_id = uuid4()
+        self.audit_id = str(uuid4())
         self.schedule_id = schedule_id
         self.title = title
         self.muni = muni

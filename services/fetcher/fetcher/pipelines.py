@@ -1,17 +1,10 @@
-# Define your item pipelines here
-#
-# Don't forget to add your pipeline to the ITEM_PIPELINES setting
-# See: https://docs.scrapy.org/en/latest/topics/item-pipeline.html
+"""Process downloaded PDFs and commit reports and duplicate receipts together."""
 
-
-# useful for handling different item types with a single interface
-import os
-
-import pymysql
+from pathlib import Path
 from scrapy.pipelines.files import FilesPipeline
-
 from fetcher.ai.pipeline import process_audit
 from fetcher.classes import Audit
+from fetcher.storage import connect_db
 
 
 class FetcherPipeline:
@@ -20,75 +13,62 @@ class FetcherPipeline:
 
 
 class PdfPipeline(FilesPipeline):
-    def file_path(self, request, response=None, info=None, *, item=None):
-        # Currently hard-coded to Portland, OR URLs
-        filename = request.url.split("/")[-3]
-        return f"{filename}.pdf"
+    """Retain Scrapy's URL-hash filenames, which also work outside Portland."""
 
 
 class SummarizeTagPipeline:
-    def get_connection(self):
-        return pymysql.connect(
-            host="localhost",
-            user="root",
-            password=os.environ["MYSQL_ROOT_PASSWORD"],
-            database="auditsector",
-            cursorclass=pymysql.cursors.DictCursor,
-        )
-
+    @classmethod
+    def from_crawler(cls, crawler):
+        instance = cls()
+        instance.crawler = crawler
+        return instance
 
     def process_item(self, item, spider):
-        audits = []
-
-
-        with self.get_connection() as conn, conn.cursor() as cur:
-            cur.execute("SELECT * FROM tags;")
-            tags = cur.fetchall()
-            tag_lookup = {tag["name"]: tag["tag_id"] for tag in tags}
-
-        for file in item["files"]:
-            path = f"files/{spider.name}/{file['path']}"
-            processed_audit = process_audit(path)
-
-            audit = Audit(muni=spider.name)
-            audit.title = processed_audit["file_name"]
-            audit.summary = processed_audit["summary"]
-            audit.tags = [tag_lookup[tag["tag"]] for tag in processed_audit["tags"]]
-
-            audits.append(audit)
-
-        insert_audit_query = """
-            INSERT INTO audit_headers (
-                audit_id,
-                schedule_id,
-                title,
-                muni,
-                audit_date,
-                risk_level,
-                run_status,
-                summary,
-                created_at)
-            VALUES (
-                %(audit_id)s,
-                %(schedule_id)s,
-                %(title)s,
-                %(muni)s,
-                NOW(),
-                %(risk_level)s,
-                %(run_status)s,
-                %(summary)s,
-                NOW()
+        files = item.get("files", [])
+        if len(files) != len(item["file_urls"]):
+            raise ValueError("One or more PDFs could not be downloaded")
+        store = Path(self.crawler.settings["FILES_STORE"])
+        for file in files:
+            # Already committed files are skipped even if the item is retried.
+            with connect_db() as conn, conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM fetches WHERE spider_id=%s AND fetch_url=%s",
+                    (spider.name, file["url"]),
                 )
-        """
-        insert_audit_tags_query = """
-            INSERT INTO audit_tags (audit_id, tag_id)
-                VALUES (%(audit_id)s, %(tag_id)s)
-        """
-
-        for audit in audits:
-            with self.get_connection() as conn, conn.cursor() as cur:
-                cur.execute(insert_audit_query, audit.insert_audit_dict())
-                cur.executemany(insert_audit_tags_query, audit.insert_tags_dict_list())
-                conn.commit()
-
+                if cur.fetchone():
+                    continue
+            processed = process_audit(store / file["path"])
+            audit = Audit(schedule_id=spider.schedule_id, muni=spider.name)
+            audit.title = processed["file_name"]
+            audit.summary = processed["summary"]
+            audit.run_status = "COMPLETED"
+            with connect_db() as conn, conn.cursor() as cur:
+                cur.execute("SELECT tag_id, name FROM tags")
+                tags = {row["name"]: row["tag_id"] for row in cur.fetchall()}
+                audit.tags = list(
+                    dict.fromkeys(tags[tag["tag"]] for tag in processed["tags"])
+                )
+                try:
+                    cur.execute(
+                        """INSERT INTO audit_headers
+                        (audit_id, schedule_id, title, muni, audit_date, risk_level,
+                         run_status, summary, created_at)
+                        VALUES (%(audit_id)s, %(schedule_id)s, %(title)s, %(muni)s,
+                         UTC_TIMESTAMP(), %(risk_level)s, %(run_status)s, %(summary)s, UTC_TIMESTAMP())
+                        """,
+                        audit.insert_audit_dict(),
+                    )
+                    if audit.tags:
+                        cur.executemany(
+                            "INSERT INTO audit_tags (audit_id, tag_id) VALUES (%(audit_id)s, %(tag_id)s)",
+                            audit.insert_tags_dict_list(),
+                        )
+                    cur.execute(
+                        "INSERT INTO fetches (spider_id, fetch_url) VALUES (%s, %s)",
+                        (spider.name, file["url"]),
+                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
         return item

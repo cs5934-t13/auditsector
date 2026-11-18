@@ -6,22 +6,13 @@ class PortlandORSpider(BaseSpider):
     start_urls = [
         "https://efiles.portlandoregon.gov/record?q=recContainerEx%3a3753929&sortBy=recCreatedOn-&nb=true&pageSize=15&start=1"
     ]
-    custom_settings = {
-        "FILES_STORE": "./files/portland_or",
-    }
+    custom_settings = {"FILES_STORE": "./files/portland_or"}
 
     def parse(self, response):
-        duplicates = self.get_download_urls()
-        print(f"Duplicates: {duplicates}")
-
-        file_urls = [
-            response.urljoin(item + "file/document")
+        urls = [
+            response.urljoin(item.rstrip("/") + "/file/document")
             for item in response.xpath(
                 "/html/body/table/tbody/tr/td[4]/a/@href"
             ).getall()
-            if response.urljoin(item + "file/document") not in duplicates
         ]
-
-        self.record_download(file_urls)
-
-        yield {"file_urls": file_urls}
+        yield {"file_urls": self.new_files(urls)}

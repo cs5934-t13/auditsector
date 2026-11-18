@@ -8,9 +8,9 @@ CREATE TABLE IF NOT EXISTS audit_headers(
     run_status  ENUM('PENDING', 'RUNNING', 'COMPLETED', 'FAILED') DEFAULT 'PENDING' NOT NULL,
     summary     TEXT NULL,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    -- CONSTRAINT fk_audit_schedule
-    --     Foreign Key (schedule_id) REFERENCES schedules(schedule_id)
-    --     ON DELETE RESTRICT,
+    CONSTRAINT fk_audit_schedule
+        Foreign Key (schedule_id) REFERENCES schedules(schedule_id)
+        ON DELETE RESTRICT,
     INDEX idx_audit_schedule_date (schedule_id, audit_date),
     INDEX idx_audit_risk (risk_level),
     INDEX idx_audit_status (run_status)

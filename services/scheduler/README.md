@@ -1,18 +1,31 @@
-# Scheduler — AW-98
+# Scheduler (AW-98)
 
-## Purpose
-Trigger scans of registered audit sources when their schedules are due,
-and record when each scan is triggered.
+The existing services container runs `python -m services.scheduler` through uv.
+It checks saved sources every 60 seconds, sequentially, and launches the existing
+Scrapy Portland or Seattle spider in a child process. Other collections report an
+error until a suitable spider is added; this is not a generic website crawler.
 
+- New sources with no next-run time run on the next pass. ARCHIVE never runs.
+- HOURLY/DAILY/WEEKLY preserve their slots; missed slots produce one scan.
+- MONTHLY advances calendar months, clamping the stored day at month end.
+- Times are UTC. Run start, SUCCESS/ERROR, and next time are saved together.
+- Failed scans retry after five minutes. A MySQL lock prevents overlapping passes.
+- Reports use the real schedule ID. A receipt is committed with each saved report;
+  failed downloads/processing remain retryable. Repeated scans skip saved URLs.
+- Scrapy errors and pipeline errors make the child process fail, not just print logs.
 
-## Behavior
+Before running against an older database, back it up and stop the worker. Run
+`data/migrations/scheduler_fetcher.py` to inspect the upgrade, then use `--apply`.
+It preserves IDs/records, refuses orphan reports, duplicate receipts, or unresolved
+legacy download records, and seeds
+missing predefined tags. MySQL DDL is not transactional: keep the backup.
 
-- Checks schedules every 60 seconds after each processing pass.
-- Supports HOURLY, DAILY, and WEEKLY frequencies.
-- Triggers overdue schedules once and advances to the next future slot.
-- Reads and writes schedule times using a proposed UTC convention.
-- Logs failures and continues processing other schedules.
+Build: `podman build -t services services`. The worker needs MYSQL_ROOT_PASSWORD,
+LLM_API_URL, and LLM_API_KEY from the existing Podman secrets configuration.
+`--once` runs one pass; `--poll-seconds` changes polling, not saved frequencies.
+Run unit tests in the image with `uv run --no-sync python -m unittest discover
+-s /services/scheduler -p 'test_*.py'`. Integration tests use a disposable database.
 
-Fetcher integration and run-time recording are pending coordination.
-MONTHLY and ARCHIVE behavior is not implemented.
-
+Existing pipeline limitations remain: audit_date is ingestion time, report titles
+use PDF filenames, risk defaults to INFO, and only the current spider selectors
+are supported. Recent Reports requires the separate AW-105 frontend integration.

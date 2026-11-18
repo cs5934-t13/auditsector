@@ -1,42 +1,30 @@
-# This package will contain the spiders of your Scrapy project
-#
-# Please refer to the documentation for information on how to create and manage
-# your spiders.
-import os
+"""Common source identity and committed-download lookup for collection spiders."""
 
-import pymysql.cursors
 import scrapy
+from fetcher.storage import connect_db
 
 
 class BaseSpider(scrapy.Spider):
-    def record_download(self, urls):
-        # Save a download URL to the `fetches` table
-        connection = pymysql.connect(
-            host="localhost",
-            user="root",
-            password=os.environ["MYSQL_ROOT_PASSWORD"],
-            database="auditsector",
-            cursorclass=pymysql.cursors.DictCursor,
-        )
-
-        with connection, connection.cursor() as cursor:
-            for url in urls:
-                sql = "INSERT INTO `fetches` (`spider_id`, `fetch_url`) VALUES(%s, %s)"
-                cursor.execute(sql, (self.name, url))
-            connection.commit()
+    def __init__(self, *args, source_url=None, schedule_id=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.schedule_id = int(schedule_id or 0)
+        if self.schedule_id < 1:
+            raise ValueError("A real schedule_id is required")
+        if source_url:
+            self.start_urls = [source_url]
 
     def get_download_urls(self):
-        # Retrieve downloaded URLs from the `fetches` table
-        connection = pymysql.connect(
-            host="localhost",
-            user="root",
-            password=os.environ["MYSQL_ROOT_PASSWORD"],
-            database="auditsector",
-            cursorclass=pymysql.cursors.DictCursor,
-        )
-        with connection, connection.cursor() as cursor:
-            sql = "SELECT DISTINCT `fetch_url` FROM `fetches` WHERE `spider_id`=%s"
-            cursor.execute(sql, (self.name,))
-            result = [row["fetch_url"] for row in cursor.fetchall()]
+        with connect_db() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT fetch_url FROM fetches WHERE spider_id=%s", (self.name,)
+            )
+            return {row["fetch_url"] for row in cur.fetchall()}
 
-        return result
+    def new_files(self, urls):
+        urls = list(dict.fromkeys(urls))
+        if not urls:
+            raise ValueError(
+                "No report links found; check the collection page selector"
+            )
+        done = self.get_download_urls()
+        return [url for url in urls if url not in done]
