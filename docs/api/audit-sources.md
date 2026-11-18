@@ -1,4 +1,4 @@
-# POST /sources API Contract
+# /sources API Contract
 
 ## Purpose
 
@@ -128,3 +128,31 @@ Database failures return `500 Internal Server Error`.
   }
 }
 ```
+
+
+## GET /sources: read saved frequencies (AW-97)
+
+Browser path: `GET /api/sources`. Requires the same authenticated Flask session
+as POST. Returns only sources owned by that session user, ordered by `schedule_id`
+ascending. The optional deprecated `user` parameter follows the same matching rule
+as POST; it cannot select another user's records.
+
+Returns `200 OK` with the same four saved-source fields used by POST:
+
+```json
+{"data":[{"schedule_id":1,"created_by":3,"source_link":"https://example.com/audits","scan_frequency":"WEEKLY"}]}
+```
+
+No saved sources returns `200 OK` with `{"data":[]}`. Frequencies are read from
+storage unchanged, including `ARCHIVE` for previously archived schedules.
+POST continues to accept HOURLY, DAILY, WEEKLY, and MONTHLY; this adds no custom
+interval format or new frequency choices.
+
+Authentication and username-mismatch errors match POST. A deleted session user
+returns `400 INVALID_USER`. Database retrieval failures return `500` with:
+
+```json
+{"error":{"code":"INTERNAL_SERVER_ERROR","message":"Unable to retrieve sources"}}
+```
+
+GET is read-only: it does not trigger a scan or change scheduling times.

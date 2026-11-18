@@ -293,6 +293,38 @@ def valid_url(url):
         return False
 
 
+@app.route("/sources", methods=["GET"])
+@login_required
+def get_sources():
+    """Read saved source frequencies for the signed-in owner only."""
+    username = session["username"]
+    requested_user = request.args.get("user")
+    if requested_user and requested_user != username:
+        return error_response(
+            "USER_MISMATCH",
+            "The 'user' parameter must match the signed-in user.",
+            403,
+        )
+
+    try:
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT user_id FROM users WHERE username = %s", (username,))
+            owner = cur.fetchone()
+            if owner is None:
+                return error_response("INVALID_USER", "Given user not found in database.", 400)
+            cur.execute("""
+                SELECT schedule_id, created_by, source_link, scan_frequency
+                FROM schedules
+                WHERE created_by = %s
+                ORDER BY schedule_id
+            """, (owner["user_id"],))
+            rows = list(cur.fetchall())
+    except pymysql.MySQLError:
+        return error_response("INTERNAL_SERVER_ERROR", "Unable to retrieve sources", 500)
+
+    return {"data": rows}, 200
+
+
 @app.route("/sources", methods=["POST"])
 @login_required
 def add_source():
