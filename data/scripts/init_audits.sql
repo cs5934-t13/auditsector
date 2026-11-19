@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS audit_headers(
     schedule_id BIGINT UNSIGNED NOT NULL,
     title       VARCHAR(255) NOT NULL,
     muni        VARCHAR(255) DEFAULT '' NOT NULL,
+    audit_url   TEXT NOT NULL,
     audit_date  DATETIME NOT NULL,
     risk_level  ENUM('INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL') NULL,
     run_status  ENUM('PENDING', 'RUNNING', 'COMPLETED', 'FAILED') DEFAULT 'PENDING' NOT NULL,
