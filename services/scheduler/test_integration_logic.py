@@ -4,10 +4,10 @@ import subprocess
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, Mock, patch
-from services.scheduler.scheduler import Schedule, calculate_next_run, trigger_due_scans
-from services.scheduler.fetcher import scan, spider_for_url
-from services.scheduler.runner import run_once
-from services.scheduler.repository import save_run
+from scheduler_calculate import Schedule, calculate_next_run, trigger_due_scans
+from trigger_fetcher import scan, spider_for_url
+from runner import run_once
+from repository import save_run
 
 UTC = timezone.utc
 NOW = datetime(2026, 1, 31, 12, tzinfo=UTC)
@@ -56,7 +56,7 @@ class IntegrationLogicTests(unittest.TestCase):
         callback = Mock(side_effect=[RuntimeError("controlled failure"), None])
         save = Mock()
         schedules = [Schedule(1, "a", "DAILY", NOW), Schedule(2, "b", "WEEKLY", NOW)]
-        with self.assertLogs("services.scheduler.scheduler", level="ERROR"):
+        with self.assertLogs("scheduler_calculate", level="ERROR"):
             trigger_due_scans(schedules, NOW, callback, save_result=save)
         self.assertEqual(callback.call_count, 2)
         self.assertEqual(
@@ -98,7 +98,7 @@ class IntegrationLogicTests(unittest.TestCase):
         schedule = Schedule(
             42, "https://www.seattle.gov/city-auditor/reports", "DAILY", NOW
         )
-        with patch("services.scheduler.fetcher.subprocess.run") as run:
+        with patch("trigger_fetcher.subprocess.run") as run:
             scan(schedule)
             command = run.call_args.args[0]
             self.assertEqual(
@@ -107,7 +107,7 @@ class IntegrationLogicTests(unittest.TestCase):
             self.assertTrue(run.call_args.kwargs["check"])
             self.assertNotIn("shell", run.call_args.kwargs)
         with patch(
-            "services.scheduler.fetcher.subprocess.run",
+            "trigger_fetcher.subprocess.run",
             side_effect=subprocess.CalledProcessError(1, ["crawl"]),
         ):
             with self.assertRaises(subprocess.CalledProcessError):
@@ -117,7 +117,7 @@ class IntegrationLogicTests(unittest.TestCase):
         conn = MagicMock()
         cur = conn.cursor.return_value.__enter__.return_value
         cur.fetchone.return_value = {"acquired": 0}
-        with patch("services.scheduler.runner.load_schedules") as load:
+        with patch("runner.load_schedules") as load:
             callback = Mock()
             run_once(conn, NOW, callback)
             load.assert_not_called()
@@ -154,7 +154,7 @@ class IntegrationLogicTests(unittest.TestCase):
         )
         save.assert_called_once_with(1, NOW, "SUCCESS", NOW + timedelta(hours=3))
         save = Mock()
-        with self.assertLogs("services.scheduler.scheduler", level="ERROR"):
+        with self.assertLogs("scheduler_calculate", level="ERROR"):
             failures = trigger_due_scans(
                 [Schedule(1, "a", "HOURLY", NOW)],
                 NOW,

@@ -16,9 +16,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 import pymupdf
 import pymysql
-from services.scheduler.fetcher import scan
-from services.scheduler.repository import connect_db
-from services.scheduler.runner import run_once
+from trigger_fetcher import scan
+from repository import connect_db
+from runner import run_once
 
 TOKEN = os.environ.get("AW98_TEST_RUN")
 
@@ -170,7 +170,7 @@ class MySQLIntegrationTests(unittest.TestCase):
         # Only routing is replaced: real adapter -> child process -> HTTP -> PDF -> LLM fixture -> MySQL.
         now = datetime.now(timezone.utc)
         with patch(
-            "services.scheduler.fetcher.spider_for_url", return_value="portland_or"
+            "trigger_fetcher.spider_for_url", return_value="portland_or"
         ):
             run_once(self.conn, now, scan)
 
@@ -233,7 +233,7 @@ class MySQLIntegrationTests(unittest.TestCase):
 
     def test_failed_llm_remains_retryable_and_recovers(self):
         self.fail_llm = True
-        with self.assertLogs("services.scheduler.scheduler", level="ERROR"):
+        with self.assertLogs("scheduler_calculate", level="ERROR"):
             self.run_pass()
         self.assertEqual(
             self.query("SELECT * FROM audit_headers WHERE schedule_id=%s", (self.sid,)),
@@ -267,7 +267,7 @@ class MySQLIntegrationTests(unittest.TestCase):
 
     def test_failed_download_does_not_create_a_receipt(self):
         self.fail_download = True
-        with self.assertLogs("services.scheduler.scheduler", level="ERROR"):
+        with self.assertLogs("scheduler_calculate", level="ERROR"):
             self.run_pass()
         self.assertEqual(
             self.query(
@@ -290,7 +290,7 @@ class MySQLIntegrationTests(unittest.TestCase):
                 "CREATE TRIGGER aw98_receipt_failure BEFORE INSERT ON fetches FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='controlled receipt failure'"
             )
         try:
-            with self.assertLogs("services.scheduler.scheduler", level="ERROR"):
+            with self.assertLogs("scheduler_calculate", level="ERROR"):
                 self.run_pass()
             self.assertEqual(
                 self.query(

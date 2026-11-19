@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from services.scheduler.runner import run_forever
+from runner import run_forever
 
 
 class RunnerTests(unittest.TestCase):
@@ -14,19 +14,19 @@ class RunnerTests(unittest.TestCase):
 
         with (
             patch(
-                "services.scheduler.runner.connect_db",
+                "runner.connect_db",
                 side_effect=[first_connection, second_connection],
             ) as connect,
             patch(
-                "services.scheduler.runner.run_once",
+                "runner.run_once",
                 side_effect=[RuntimeError("Test failure"), None],
             ) as process,
             patch(
-                "services.scheduler.runner.time.sleep",
+                "runner.time.sleep",
                 side_effect=[None, KeyboardInterrupt],
             ) as wait,
             self.assertLogs(
-                "services.scheduler.runner", level="ERROR"
+                "runner", level="ERROR"
             ),
         ):
             run_forever(fake_scan, poll_seconds=60)

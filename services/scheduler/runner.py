@@ -4,8 +4,8 @@ import logging
 import time
 from datetime import datetime, timezone
 
-from services.scheduler.repository import connect_db, load_schedules, save_run
-from services.scheduler.scheduler import trigger_due_scans
+from repository import connect_db, load_schedules, save_run
+from scheduler_calculate import trigger_due_scans
 
 logger = logging.getLogger(__name__)
 LOCK_NAME = "auditsector.scheduler"
