@@ -4,7 +4,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
-from repository import load_schedules, save_next_run
+from services.scheduler.repository import load_schedules, save_next_run
 
 class RepositoryTests(unittest.TestCase):
     

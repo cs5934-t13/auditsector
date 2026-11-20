@@ -3,7 +3,7 @@
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from scheduler_calculate import Schedule, trigger_due_scans
+from services.scheduler.scheduler import Schedule, trigger_due_scans
 
 
 class SchedulerTests(unittest.TestCase):
@@ -46,7 +46,7 @@ class SchedulerTests(unittest.TestCase):
                 raise RuntimeError("Intentional test failure")
 
         with self.assertLogs(
-            "scheduler_calculate", level="ERROR"
+            "services.scheduler.scheduler", level="ERROR"
         ) as logs:
             trigger_due_scans(schedules, now, fake_scan)
 

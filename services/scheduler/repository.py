@@ -1,6 +1,6 @@
 """Database access for audit-source schedules."""
 
-from scheduler_calculate import Schedule
+from services.scheduler.scheduler import Schedule
 import os
 from datetime import timezone, datetime
 

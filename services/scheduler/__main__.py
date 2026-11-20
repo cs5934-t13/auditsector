@@ -4,9 +4,9 @@ import argparse
 import logging
 import os
 from datetime import datetime, timezone
-from trigger_fetcher import scan
-from repository import connect_db
-from runner import run_forever, run_once
+from services.scheduler.fetcher import scan
+from services.scheduler.repository import connect_db
+from services.scheduler.runner import run_forever, run_once
 
 
 def main():
