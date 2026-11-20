@@ -11,11 +11,6 @@ class FetcherPipeline:
     def process_item(self, item):
         return item
 
-
-class PdfPipeline(FilesPipeline):
-    """Retain Scrapy's URL-hash filenames, which also work outside Portland."""
-
-
 class SummarizeTagPipeline:
     @classmethod
     def from_crawler(cls, crawler):
