@@ -2,7 +2,9 @@
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
+import pymysql
 
 from services.scheduler.repository import connect_db, load_schedules, save_run
 from services.scheduler.scheduler import trigger_due_scans
@@ -26,7 +28,7 @@ def run_once(connection, now, trigger_scan):
             save_result=lambda sid, started, status, next_run: save_run(
                 connection, sid, started, status, next_run
             ),
-            clock=lambda: datetime.now(timezone.utc),
+            clock=lambda: datetime.now(UTC),
         )
     finally:
         with connection.cursor() as cur:
@@ -38,14 +40,25 @@ def run_forever(trigger_scan, poll_seconds=60):
         raise ValueError("poll_seconds must be greater than zero")
     try:
         while True:
-            try:
-                connection = connect_db()
+            run_completed = False
+
+            while not run_completed:
+                time.sleep(5)
+
                 try:
-                    run_once(connection, datetime.now(timezone.utc), trigger_scan)
-                finally:
-                    connection.close()
-            except Exception:
-                logger.exception("Scheduler pass failed")
+                    connection = connect_db()
+                    try:
+                        run_once(connection, datetime.now(UTC), trigger_scan)
+                        run_completed = True
+                        logger.info("Run successful.")
+                    finally:
+                        connection.close()
+                except pymysql.err.OperationalError as oe:
+                    error_code = oe.args[0] if oe.args else None
+                    if error_code != 2003:
+                        logger.exception("Scheduler pass failed")
+                    logger.info("Retrying database connection in 5 seconds.")
+
             time.sleep(poll_seconds)
     except KeyboardInterrupt:
         logger.info("Scheduler stopped")
