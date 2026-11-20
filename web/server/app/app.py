@@ -1,5 +1,6 @@
 import os
-from datetime import timedelta
+import time
+from datetime import timedelta, datetime, timezone
 from functools import wraps
 from urllib.parse import urlparse
 
@@ -29,14 +30,21 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_prefix=1)
 
 VALID_FREQUENCIES = {"HOURLY", "DAILY", "WEEKLY", "MONTHLY"}
 
-def get_db_connection():
-    return pymysql.connect(
-        host="127.0.0.1",
-        user="root",
-        password=os.environ["MYSQL_ROOT_PASSWORD"],
-        database="auditsector",
-        cursorclass=pymysql.cursors.DictCursor,
-    )
+def get_db_connection(**overrides):
+    """Opens a connection to the auditsector database.
+
+    Any keyword arguments are passed through to pymysql.connect and override
+    the defaults, e.g. get_db_connection(connect_timeout=3, read_timeout=3).
+    """
+    options = {
+        "host": "127.0.0.1",
+        "user": "root",
+        "password": os.environ["MYSQL_ROOT_PASSWORD"],
+        "database": "auditsector",
+        "cursorclass": pymysql.cursors.DictCursor,
+    }
+    options.update(overrides)
+    return pymysql.connect(**options)
 
 
 def _current_role(username):
@@ -572,3 +580,193 @@ def get_recent_audits():
             "total_pages": (total_items + limit - 1) // limit,
         },
     }, 200
+
+# --- System health -----------------------------------------------------------
+
+APP_STARTED_AT = datetime.now(timezone.utc)
+STATUS_RANK = {"up": 0, "degraded": 1, "down": 2}
+
+
+def _isoformat_or_none(value):
+    return value.isoformat(timespec="seconds") if value else None
+
+
+def _check_database_capacity(cur):
+    """Total size of the auditsector schema (data + indexes) in megabytes."""
+    cur.execute("""
+        SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024, 1) AS size_mb
+        FROM information_schema.tables
+        WHERE table_schema = 'auditsector';
+    """)
+    size_mb = cur.fetchone()["size_mb"]
+    return {
+        "status": "up",
+        "size_mb": float(size_mb) if size_mb is not None else 0.0,
+    }
+
+
+def _check_failing_schedules(cur):
+    """Schedules whose most recent run ended in an error."""
+    cur.execute("""
+        SELECT source_link, last_run_at
+        FROM schedules
+        WHERE last_run_status = 'ERROR'
+        ORDER BY last_run_at DESC;
+    """)
+    rows = cur.fetchall()
+    return {
+        "status": "degraded" if rows else "up",
+        "count": len(rows),
+        "sources": [
+            {
+                "source_link": row["source_link"],
+                "last_run_at": _isoformat_or_none(row["last_run_at"]),
+            }
+            for row in rows
+        ],
+    }
+
+
+def _check_last_fetch(cur):
+    """Time since the fetcher last stored a page.
+    """
+    cur.execute("""
+        SELECT MAX(fetched_at) AS last_fetch_at, NOW() AS db_now
+        FROM fetches;
+    """)
+    row = cur.fetchone()
+    last_fetch_at = row["last_fetch_at"]
+
+    if last_fetch_at is None:
+        return {"status": "degraded", "last_fetch_at": None, "minutes_since": None}
+
+    age = row["db_now"] - last_fetch_at
+    return {
+        "status": "degraded" if age > timedelta(hours=24) else "up",
+        "last_fetch_at": _isoformat_or_none(last_fetch_at),
+    }
+
+
+def _check_overdue_schedules(cur):
+    """Active schedules that are past due by more than the 30 minutes."""
+    cur.execute("""
+        SELECT COUNT(*) AS overdue
+        FROM schedules
+        WHERE scan_frequency <> 'ARCHIVE'
+        AND next_run_at < NOW() - INTERVAL 30 MINUTE;
+    """)
+    overdue = cur.fetchone()["overdue"]
+    return {
+        "status": "degraded" if overdue else "up",
+        "count": overdue,
+    }
+
+
+DB_HEALTH_CHECKS = {
+    "database_capacity": _check_database_capacity,
+    "failing_schedules": _check_failing_schedules,
+    "last_fetch": _check_last_fetch,
+    "overdue_schedules": _check_overdue_schedules,
+    # TODO: llm_connection
+}
+
+
+def _run_database_checks():
+    """Runs the connectivity check, then every DB_HEALTH_CHECKS entry.
+
+    Opens a single connection for all checks. If the database is unreachable,
+    only the "database" check is reported. A failing individual check is
+    reported as degraded rather than failing the whole request.
+    """
+    start = time.perf_counter()
+    try:
+        conn = get_db_connection(connect_timeout=3, read_timeout=3)
+    except pymysql.MySQLError:
+        return {
+            "database": {
+                "status": "down",
+                "error": "Unable to connect to the database.",
+            }
+        }
+
+    checks = {}
+    with conn:
+        with conn.cursor() as cur:
+            try:
+                cur.execute("SELECT 1;")
+                cur.fetchone()
+            except pymysql.MySQLError:
+                checks["database"] = {
+                    "status": "down",
+                    "error": "Unable to query the database.",
+                }
+                return checks
+
+            checks["database"] = {
+                "status": "up",
+                "latency_ms": round((time.perf_counter() - start) * 1000, 1),
+            }
+
+            for name, check in DB_HEALTH_CHECKS.items():
+                try:
+                    checks[name] = check(cur)
+                except pymysql.MySQLError:
+                    checks[name] = {
+                        "status": "degraded",
+                        "error": "Unable to run this check.",
+                    }
+
+    return checks
+
+
+def _check_uptime():
+    """How long this server process has been running."""
+    uptime = datetime.now(timezone.utc) - APP_STARTED_AT
+    return {
+        "status": "up",
+        "started_at": _isoformat_or_none(APP_STARTED_AT),
+        "uptime_seconds": int(uptime.total_seconds()),
+    }
+
+
+def _viewer_is_admin():
+    """True if the session belongs to a currently active administrator."""
+    username = session.get("username")
+    if not username:
+        return False
+    row = _current_role(username)
+    return (
+        row is not None
+        and row["user_status"] == "ACTIVE"
+        and row["user_role"] == "ADMIN"
+    )
+
+
+@app.route("/health", methods=["GET"])
+def get_system_health():
+    """Reports the health of the database, fetcher, and schedules.
+
+    If user is non-admin, can only view if database is up. Otherwise, can view details of all metrics.
+    
+    Returns code 503 is database/services are overall "down", otherwise returns 200 if generally functioning.
+    """
+    checks = _run_database_checks()
+    checks["uptime"] = _check_uptime()
+
+    overall = max(
+        (check["status"] for check in checks.values()),
+        key=STATUS_RANK.__getitem__,
+    )
+
+    # Only look up the role when the database is reachable; otherwise the
+    # lookup would just fail again.
+    if checks["database"]["status"] != "up" or not _viewer_is_admin():
+        checks = {name: {"status": check["status"]} for name, check in checks.items()}
+
+    return {
+        "data": {
+            "status": overall,
+            "checked_at": _isoformat_or_none(datetime.now(timezone.utc)),
+            "checks": checks,
+        }
+    }, 503 if overall == "down" else 200
