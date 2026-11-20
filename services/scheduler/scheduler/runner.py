@@ -13,6 +13,10 @@ LOCK_NAME = "auditsector.scheduler"
 
 def run_once(connection, now, trigger_scan):
     with connection.cursor() as cur:
+        # cur.execute("SELECT GET_LOCK(%s, 0) AS acquired", (LOCK_NAME,))
+        # if cur.fetchone()["acquired"] != 1:
+        #     return 0
+        # try:
         schedules = load_schedules(connection)
         connection.commit()  # End the read snapshot before a potentially long crawl.
         return trigger_due_scans(
@@ -24,6 +28,9 @@ def run_once(connection, now, trigger_scan):
             ),
             clock=lambda: datetime.now(timezone.utc),
         )
+    # finally:
+    #     with connection.cursor() as cur:
+    #         cur.execute("SELECT RELEASE_LOCK(%s)", (LOCK_NAME,))
 
 
 def run_forever(trigger_scan, poll_seconds=60):
