@@ -119,3 +119,14 @@ jobs:
 
       - name: Print Services image url
         run: echo "Services image pushed to ${{ steps.push-services.outputs.registry-paths }}"
+
+      - name: Push Data To Registry
+        id: push-data
+        uses: redhat-actions/push-to-registry@v3.0.0
+        with:
+          image: ${{ steps.build-services.outputs.image }}
+          tags: ${{ steps.build-services.outputs.server}}
+          registry: ${{ env.IMAGE_REGISTRY }}
+
+      - name: Print Data image url
+        run: echo "Data image pushed to ${{ steps.push-services.outputs.registry-paths }}"
