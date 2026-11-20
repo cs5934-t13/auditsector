@@ -13,10 +13,10 @@ LOCK_NAME = "auditsector.scheduler"
 
 def run_once(connection, now, trigger_scan):
     with connection.cursor() as cur:
-        # cur.execute("SELECT GET_LOCK(%s, 0) AS acquired", (LOCK_NAME,))
-        # if cur.fetchone()["acquired"] != 1:
-        #     return 0
-        # try:
+        cur.execute("SELECT GET_LOCK(%s, 0) AS acquired", (LOCK_NAME,))
+        if cur.fetchone()["acquired"] != 1:
+            return 0
+    try:
         schedules = load_schedules(connection)
         connection.commit()  # End the read snapshot before a potentially long crawl.
         return trigger_due_scans(
@@ -28,9 +28,9 @@ def run_once(connection, now, trigger_scan):
             ),
             clock=lambda: datetime.now(timezone.utc),
         )
-    # finally:
-    #     with connection.cursor() as cur:
-    #         cur.execute("SELECT RELEASE_LOCK(%s)", (LOCK_NAME,))
+    finally:
+        with connection.cursor() as cur:
+            cur.execute("SELECT RELEASE_LOCK(%s)", (LOCK_NAME,))
 
 
 def run_forever(trigger_scan, poll_seconds=60):
@@ -38,26 +38,14 @@ def run_forever(trigger_scan, poll_seconds=60):
         raise ValueError("poll_seconds must be greater than zero")
     try:
         while True:
-            run_completed = False
-            while not run_completed:
-                logger.info("Attempting database connection")
-                time.sleep(5)
+            try:
+                connection = connect_db()
                 try:
-                    connection = connect_db()
-                    try:
-                        logger.info("Beginning run")
-                        run_once(connection, datetime.now(timezone.utc), trigger_scan)
-                        logger.info("Run completing")
-                        run_completed = True
-                    finally:
-                        connection.close()
-                except pymysql.err.OperationError as oe:
-                    error_code = oe.args[0] if oe.args else None
-                    if error_code != 2003:
-                        logger.exception("Scheduler pass failed")
-                    logger.info("Database not initialized yet. Retrying in 5 seconds.")
-
-
+                    run_once(connection, datetime.now(timezone.utc), trigger_scan)
+                finally:
+                    connection.close()
+            except Exception:
+                logger.exception("Scheduler pass failed")
             time.sleep(poll_seconds)
     except KeyboardInterrupt:
         logger.info("Scheduler stopped")
