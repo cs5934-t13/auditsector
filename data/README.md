@@ -67,3 +67,13 @@ See `authentication/` for the shared Argon2 password verification helper and
 `tests/` verifies the schema. It does **not** yet cover `app_settings`;
 `EXPECTED_TABLES` in `tests/test_schema.py` still lists only the five original
 tables, so the new table is untested.
+
+
+## Updating an existing database for AW-98
+
+Back up the database and stop the scanning worker first. The inspect-only default
+of `migrations/scheduler_fetcher.py` prints the required changes; `--apply` performs
+them and seeds missing predefined tags. It preserves existing records and numeric
+IDs as text, and refuses unresolved orphan reports, duplicate fetch receipts, or
+legacy download-only records that need review before reuse.
+Initialization SQL alone does not update existing tables. See the scheduler README.

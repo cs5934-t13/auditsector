@@ -1,84 +1,25 @@
-# Application Layer
+# Application layer
 
-The `services` container is a long-running worker placeholder. `Containerfile`
-builds from `ghcr.io/astral-sh/uv:debian-slim`, copies the whole directory to
-`/services`, and runs `services/test/test.py`.
+The services container runs the AW-98 scheduler and Scott's existing Scrapy fetcher.
+It reads saved sources, launches supported collection scans, processes downloaded
+PDFs, and writes reports, tags, and duplicate receipts to MySQL.
 
-## Build and run
+Build with `podman build -t services services`. The container belongs in the
+existing web pod and needs MYSQL_ROOT_PASSWORD, LLM_API_URL, and LLM_API_KEY from
+Podman secrets. Do not put secret values in commands, documentation, or Git.
 
-```sh
-podman build -t services services
-podman run --pod web -d --name web-services services
-```
+See [scheduler instructions](scheduler/README.md) for timing, supported sources,
+and the inspect-first migration required by older databases. The existing pod.yaml
+already supplies worker environment references; existing containers must be updated
+explicitly because rebuilding an image does not replace a running container.
 
-## Current behaviour
+Run `python3 services/scheduler/run_integration_tests.py` from the repository root.
+It builds worker/server images and tests real login, source creation, Scrapy, PDF
+extraction, a local LLM fixture, report persistence, retries, and migration safety.
+Its own temporary MySQL pod has no published ports or persistent database volume.
+The local LLM fixture verifies integration, not the availability of the team's ARC service.
 
-`test/test.py` is a stub: it prints `Debian is running` every 10 seconds and does
-nothing else. It is started by `pod.yaml` so the container is present in the pod,
-but it is **not required for the web UI** — the client, server, and database do
-all the work.
-
-```
-services/
-├── Containerfile
-└── test/test.py      # placeholder loop
-```
-
-When the scanning workers are implemented, they belong here: this layer is meant
-to read due rows from `schedules` and process each `source_link` at its
-`scan_frequency`.
-
-## AI Audit Processing Pipeline
-
-The AI pipeline processes government audit PDFs using PyMuPDF
-and Virginia Tech's ARC LLM.
-
-### Components
-
-- `ai/extract.py` - Extracts text from PDF documents.
-- `ai/summarize.py` - Generates four-sentence audit summaries.
-- `ai/tag.py` - Classifies reports using 10 predefined categories.
-- `ai/pipeline.py` - Connects all three components.
-
-### Usage
-
-```python
-from ai.pipeline import process_audit
-
-result = process_audit("/path/to/audit.pdf")
-```
-
-Run this from the services directory, or ensure `services/`
-is on the Python import path.
-
-### Example Output
-
-```json
-{
-  "file_name": "audit.pdf",
-  "page_count": 35,
-  "summary": "AI-generated summary...",
-  "tags": [
-    {
-      "tag": "Human Resources",
-      "evidence": "Supporting evidence from the audit."
-    }
-  ]
-}
-```
-
-### Environment Variables
-
-The pipeline requires:
-
-- `VT_LLM_API_KEY` - Virginia Tech ARC LLM API key
-
-Do not commit API keys or credentials to the repository.
-
-### Current Limitations
-
-- Only the first 12,000 characters are analyzed by the LLM.
-- Scanned PDFs without embedded text require OCR.
-- The pipeline does not yet store results in MySQL.
-- The scraper must supply a local PDF path.
-```
+The existing AI pipeline is in `fetcher/fetcher/ai/`. Standalone
+`from fetcher.ai.pipeline import process_audit` returns a summary and predefined tags;
+the Scrapy pipeline persists them. Scanned PDFs without text still require OCR,
+audit_date remains ingestion time, and risk still defaults to INFO.
