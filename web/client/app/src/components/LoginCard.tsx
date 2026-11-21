@@ -24,6 +24,8 @@ interface LoginResponse {
    * table. Anything other than `ADMIN` is treated as `ANALYST`.
    */
   role?: string;
+  /** Present on success. Used to recognise the user's own row in admin views. */
+  user_id?: number;
 }
 
 /**
@@ -82,7 +84,11 @@ export default function LoginCard() {
       // The role decides whether the administrator views render, so it must
       // come from the server rather than defaulting to ANALYST.
       if (response.ok && data.status === LOGIN_SUCCESS_STATUS) {
-        signIn(username, data.role === 'ADMIN' ? 'ADMIN' : 'ANALYST');
+        signIn(
+          username,
+          data.role === 'ADMIN' ? 'ADMIN' : 'ANALYST',
+          typeof data.user_id === 'number' ? data.user_id : null,
+        );
       }
     } catch (err) {
       setError(`Login request failed: ${String(err)}`);
