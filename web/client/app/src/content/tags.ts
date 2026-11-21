@@ -35,6 +35,7 @@ export const SEED_TAGS = {
   grantOversight: 'Grant Oversight',
   informationTechnology: 'Information Technology',
   regulatoryCompliance: 'Regulatory Compliance',
+  credentialityOfEmployees: 'Credentiality of Employees',
 } as const;
 
 /** Union of the seed tag names. NOT a whitelist; see the file comment. */

@@ -22,4 +22,5 @@ INSERT IGNORE INTO tags (name) VALUES
     ('Capital Projects'),
     ('Grant Oversight'),
     ('Information Technology'),
-    ('Regulatory Compliance');
+    ('Regulatory Compliance'),
+    ('Credentiality of Employees');
