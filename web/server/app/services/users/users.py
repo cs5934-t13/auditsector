@@ -105,13 +105,15 @@ class Users:
         try:
             with self.get_db_connection() as conn, conn.cursor() as cur:
                 cur.execute(query, user)
+                user_id = cur.lastrowid
                 conn.commit()
+                return user_id
 
         except pymysql.MySQLError as err:
             print(f"Unexpected {err=}, {type(err)=}")
             raise
 
-    def remove_user(self, user_id):
+    def deactivate_user(self, user_id):
 
         query = """
             UPDATE users 
