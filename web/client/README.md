@@ -125,6 +125,7 @@ code change.
 | Grant Oversight | `/tag/grant-oversight` |
 | Information Technology | `/tag/information-technology` |
 | Regulatory Compliance | `/tag/regulatory-compliance` |
+| Credentiality of Employees | `/tag/credentiality-of-employees` |
 
 Slugs are derived by `tagSlug()` in `utils/tags.ts` (lowercase, non-alphanumeric
 runs collapsed to hyphens, diacritics folded), which is also how tags are matched

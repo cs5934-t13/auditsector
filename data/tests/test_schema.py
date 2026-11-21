@@ -68,6 +68,7 @@ EXPECTED_SEED_TAGS = [
     "Grant Oversight",
     "Information Technology",
     "Regulatory Compliance",
+    "Credentiality of Employees",
 ]
 
 

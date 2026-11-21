@@ -101,6 +101,7 @@ test('SEED_TAG_NAMES is the agreed seed set, in order', () => {
     'Grant Oversight',
     'Information Technology',
     'Regulatory Compliance',
+    'Credentiality of Employees',
   ])
 })
 
