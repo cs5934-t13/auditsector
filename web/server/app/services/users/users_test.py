@@ -75,7 +75,7 @@ class TestGetUser:
 
 class TestAddUser:
     def test_add_valid_user(self, users):
-        users.add_user(
+        assert users.add_user(
             first_name="Real",
             last_name="Name",
             email="my@email.com",
@@ -83,7 +83,7 @@ class TestAddUser:
             password="abc2",
             role="ADMIN",
             status="ACTIVE",
-        )
+        ) == 2
 
         user = users.get_user(2)
         assert user["first_name"] == "Real"
@@ -166,13 +166,13 @@ class TestAddUser:
 
 
 
-class TestRemoveUser:
-    def test_remove_invalid_user(self, users):
-        assert not users.remove_user(3)
+class TestDeactivateUser:
+    def test_deactivate_invalid_user(self, users):
+        assert not users.deactivate_user(3)
 
 
-    def test_remove_valid_user(self, users):
-        assert users.remove_user(1)
+    def test_deactivate_valid_user(self, users):
+        assert users.deactivate_user(1)
 
         user = users.get_user(1)
         assert user is None
