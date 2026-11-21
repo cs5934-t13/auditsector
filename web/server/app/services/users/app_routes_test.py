@@ -376,7 +376,40 @@ def test_admin_cannot_demote_themselves(client):
     response = client.put("/user/1", json={"user_role": "ANALYST"})
 
     assert response.status_code == 422
+    assert response.get_json()["error"]["code"] == "INVALID_USER"
     assert client.fake.rows[1]["user_role"] == "ADMIN"
+
+
+def test_admin_cannot_demote_themselves_via_the_role_alias(client):
+    """The short `role` spelling must not bypass the self-demote guard."""
+    sign_in(client, "admin", 1, "ADMIN")
+    response = client.put("/user/1", json={"role": "ANALYST"})
+
+    assert response.status_code == 422
+    assert client.fake.rows[1]["user_role"] == "ADMIN"
+
+
+def test_admin_can_demote_a_different_admin(client):
+    """The guard is about the caller's own account, not about ADMIN rows."""
+    sign_in(client, "admin", 1, "ADMIN")
+    client.fake.rows[2]["user_role"] = "ADMIN"
+
+    response = client.put("/user/2", json={"user_role": "ANALYST"})
+
+    assert response.status_code == 200
+    assert client.fake.rows[2]["user_role"] == "ANALYST"
+
+
+def test_admin_keeps_their_role_on_an_unrelated_edit(client):
+    sign_in(client, "admin", 1, "ADMIN")
+    response = client.put(
+        "/user/1",
+        json={"user_role": "ADMIN", "first_name": "Jordan"},
+    )
+
+    assert response.status_code == 200
+    assert client.fake.rows[1]["user_role"] == "ADMIN"
+    assert client.fake.rows[1]["first_name"] == "Jordan"
 
 
 def test_admin_cannot_archive_themselves(client):
@@ -384,7 +417,53 @@ def test_admin_cannot_archive_themselves(client):
     response = client.delete("/user/1")
 
     assert response.status_code == 422
+    assert response.get_json()["error"]["code"] == "INVALID_USER"
     assert client.fake.rows[1]["user_status"] == "ACTIVE"
+
+
+def test_admin_cannot_deactivate_themselves_via_put(client):
+    """`PUT` with `user_status` is the other way to self-archive."""
+    sign_in(client, "admin", 1, "ADMIN")
+    response = client.put("/user/1", json={"user_status": "INACTIVE"})
+
+    assert response.status_code == 422
+    assert client.fake.rows[1]["user_status"] == "ACTIVE"
+
+
+def test_admin_cannot_deactivate_themselves_via_the_status_alias(client):
+    sign_in(client, "admin", 1, "ADMIN")
+    response = client.put("/user/1", json={"status": "INACTIVE"})
+
+    assert response.status_code == 422
+    assert client.fake.rows[1]["user_status"] == "ACTIVE"
+
+
+def test_admin_cannot_deactivate_themselves_via_the_profile_endpoint(client):
+    sign_in(client, "admin", 1, "ADMIN")
+    response = client.put("/profile", json={"user_status": "INACTIVE"})
+
+    # `/profile` shares the same implementation, so the self-guard applies here
+    # too rather than only on `/user/<id>`.
+    assert response.status_code == 422
+    assert client.fake.rows[1]["user_status"] == "ACTIVE"
+
+
+def test_admin_cannot_demote_themselves_via_the_profile_endpoint(client):
+    sign_in(client, "admin", 1, "ADMIN")
+    response = client.put("/profile", json={"user_role": "ANALYST"})
+
+    assert response.status_code == 422
+    assert client.fake.rows[1]["user_role"] == "ADMIN"
+
+
+def test_admin_can_archive_a_different_admin(client):
+    sign_in(client, "admin", 1, "ADMIN")
+    client.fake.rows[2]["user_role"] = "ADMIN"
+
+    response = client.delete("/user/2")
+
+    assert response.status_code == 200
+    assert client.fake.rows[2]["user_status"] == "INACTIVE"
 
 
 def test_archive_keeps_the_row(client):

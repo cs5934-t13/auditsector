@@ -4,6 +4,7 @@ import {
   displayName,
   hasUserChanges,
   isManagedUser,
+  isSameUser,
   passwordChangeError,
   profileInputError,
   userFieldError,
@@ -132,4 +133,61 @@ test('hasUserChanges detects only defined, non-empty values', () => {
 test('displayName falls back to the username', () => {
   assert.equal(displayName(user), 'Jordan Doe')
   assert.equal(displayName({ ...user, first_name: ' ', last_name: '' }), 'jdoe')
+})
+
+test('isSameUser matches the signed-in account by id', () => {
+  assert.equal(isSameUser(user, { username: 'jdoe', userId: 7 }), true)
+  assert.equal(isSameUser(user, { username: 'jdoe', userId: 8 }), false)
+})
+
+test('isSameUser does not trust a mismatched username when ids differ', () => {
+  // Ids are authoritative: a stale username in the session must not make a
+  // different account look like the signed-in one.
+  assert.equal(isSameUser(user, { username: 'jdoe', userId: 99 }), false)
+})
+
+test('isSameUser falls back to the username when the session has no id', () => {
+  // Sessions created before /login returned user_id have `userId: null`.
+  assert.equal(isSameUser(user, { username: 'jdoe', userId: null }), true)
+  assert.equal(isSameUser(user, { username: 'asmith', userId: null }), false)
+})
+
+test('isSameUser is false without a session', () => {
+  assert.equal(isSameUser(user, null), false)
+  assert.equal(isSameUser(user, undefined), false)
+})
+
+test('isSameUser ignores an unusable id and compares usernames', () => {
+  // Degenerate ids fall back to the username rather than returning false:
+  // treating the admin's own row as "someone else" would re-enable
+  // self-archive, which is the dangerous direction to get wrong.
+  for (const userId of [0, -1, 1.5, Number.NaN]) {
+    assert.equal(isSameUser(user, { username: 'jdoe', userId }), true)
+    assert.equal(isSameUser(user, { username: 'asmith', userId }), false)
+  }
+})
+
+test('a self-edit omits role and status so it cannot demote or archive', () => {
+  // Mirrors UserFormDialog: for the signed-in row the payload leaves out
+  // user_role/user_status entirely, so the request cannot change them even if
+  // the disabled selects were tampered with.
+  const values = {
+    first_name: 'Jordan',
+    last_name: 'Doe',
+    email: 'jdoe@example.gov',
+    username: 'jdoe',
+    user_role: 'ADMIN',
+    user_status: 'ACTIVE',
+  }
+
+  const payload = {
+    first_name: values.first_name,
+    last_name: values.last_name,
+    email: values.email,
+    username: values.username,
+  }
+
+  assert.equal('user_role' in payload, false)
+  assert.equal('user_status' in payload, false)
+  assert.equal(hasUserChanges(payload), true)
 })

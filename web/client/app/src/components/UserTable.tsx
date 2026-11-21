@@ -17,13 +17,18 @@ import {
   ROLE_LABELS,
   STATUS_LABELS,
   displayName,
+  isSameUser,
   type ManagedUser,
+  type SignedInUser,
 } from '../utils/users.ts';
 
 interface UserTableProps {
   users: readonly ManagedUser[];
-  /** Id of the signed-in user, whose own row cannot be archived. */
-  currentUserId?: number | null;
+  /**
+   * The signed-in account, whose own row cannot be archived. Falls back to the
+   * username when the server did not report an id.
+   */
+  sessionUser?: SignedInUser | null;
   onEdit: (user: ManagedUser) => void;
   onArchive: (user: ManagedUser) => void;
   onRestore: (user: ManagedUser) => void;
@@ -49,7 +54,7 @@ const headCellSx = {
  */
 export default function UserTable({
   users,
-  currentUserId,
+  sessionUser,
   onEdit,
   onArchive,
   onRestore,
@@ -82,7 +87,7 @@ export default function UserTable({
         </TableHead>
         <TableBody>
           {users.map((user) => {
-            const isSelf = currentUserId != null && user.user_id === currentUserId;
+            const isSelf = isSameUser(user, sessionUser);
             const isArchived = user.user_status === 'INACTIVE';
             const name = displayName(user);
 

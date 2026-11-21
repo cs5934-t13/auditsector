@@ -30,7 +30,12 @@ import Prose from '../components/Prose';
 import SectionPanel from '../components/SectionPanel';
 import UserFormDialog from '../components/UserFormDialog';
 import UserTable from '../components/UserTable';
-import { displayName, type ManagedUser, type UserInput } from '../utils/users.ts';
+import {
+  displayName,
+  isSameUser,
+  type ManagedUser,
+  type UserInput,
+} from '../utils/users.ts';
 import { ROUTES } from '../routes';
 
 /**
@@ -92,7 +97,21 @@ export default function ManageUsersPage() {
     void reload();
   }, [reload]);
 
-  const currentUserId = sessionUser?.userId ?? null;
+  // Nullable-id aware: a session created before `/login` returned `user_id`
+  // still resolves its own row by username. Without this the archive button
+  // and the role/status selects would re-enable on the administrator's own row.
+  const sessionIdentity = useMemo(
+    () =>
+      sessionUser
+        ? { username: sessionUser.username, userId: sessionUser.userId }
+        : null,
+    [sessionUser],
+  );
+
+  const isSelf = useCallback(
+    (user: ManagedUser) => isSameUser(user, sessionIdentity),
+    [sessionIdentity],
+  );
 
   const visibleUsers = useMemo(() => {
     if (!users) {
@@ -151,6 +170,15 @@ export default function ManageUsersPage() {
     }
 
     const target = pendingArchive;
+
+    // Last line of defence before the request: an administrator must never
+    // archive the account they are signed in with. The server rejects it too.
+    if (isSelf(target)) {
+      setPendingArchive(null);
+      setActionError('You cannot archive the account you are signed in with.');
+      return;
+    }
+
     setBusy(true);
     setActionError(null);
 
@@ -333,7 +361,7 @@ export default function ManageUsersPage() {
           ) : (
             <UserTable
               users={visibleUsers}
-              currentUserId={currentUserId}
+              sessionUser={sessionIdentity}
               onEdit={openEdit}
               onArchive={setPendingArchive}
               onRestore={(target) => void handleRestore(target)}
@@ -346,11 +374,7 @@ export default function ManageUsersPage() {
       <UserFormDialog
         open={formOpen}
         user={editing}
-        isSelf={
-          editing !== null &&
-          currentUserId !== null &&
-          editing.user_id === currentUserId
-        }
+        isSelf={editing !== null && isSelf(editing)}
         onClose={closeForm}
         onSubmit={handleSubmit}
       />

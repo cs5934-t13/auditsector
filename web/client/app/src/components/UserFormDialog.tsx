@@ -130,9 +130,16 @@ export default function UserFormDialog({
       last_name: values.last_name.trim(),
       email: values.email.trim(),
       username: values.username.trim(),
-      user_role: values.user_role,
-      user_status: values.user_status,
     };
+
+    // An administrator's own role and status are locked. Omitting them entirely
+    // (rather than sending the unchanged values) means the request cannot
+    // demote or archive the signed-in account even if the form state were
+    // tampered with. The server enforces the same rule.
+    if (!isSelf) {
+      input.user_role = values.user_role;
+      input.user_status = values.user_status;
+    }
 
     if (values.password) {
       input.password = values.password;

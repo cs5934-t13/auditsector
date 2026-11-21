@@ -218,3 +218,43 @@ export function displayName(user: Pick<ManagedUser, 'first_name' | 'last_name' |
   const name = `${user.first_name} ${user.last_name}`.trim();
   return name || user.username;
 }
+
+/** The minimum a caller must know about the signed-in user. */
+export interface SignedInUser {
+  username: string;
+  /** May be `null` for a session that predates the server reporting an id. */
+  userId: number | null;
+}
+
+/**
+ * True when `user` is the signed-in account.
+ *
+ * Compares the database id when both sides have one, and falls back to the
+ * username. The fallback matters because `userId` is `null` for sessions
+ * created before `/login` started returning `user_id`; comparing ids alone
+ * would then treat the administrator's own row as somebody else's and re-enable
+ * the self-demote/self-archive controls.
+ */
+export function isSameUser(
+  user: Pick<ManagedUser, 'user_id' | 'username'>,
+  session: SignedInUser | null | undefined,
+): boolean {
+  if (!session) {
+    return false;
+  }
+
+  if (
+    session.userId !== null &&
+    Number.isSafeInteger(session.userId) &&
+    session.userId > 0
+  ) {
+    // An id mismatch is decisive: usernames are unique, so a different id can
+    // never be the same account.
+    return session.userId === user.user_id;
+  }
+
+  // No usable id: fall back to the username. This is the safe direction — an
+  // unparseable id must never make the administrator's own row look like
+  // somebody else's and re-enable self-archive.
+  return session.username === user.username;
+}

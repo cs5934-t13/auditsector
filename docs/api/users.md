@@ -15,6 +15,11 @@ Archiving never deletes a row. The account is set to `INACTIVE`, which blocks
 sign-in immediately (`POST /login` rejects any account that is not `ACTIVE`)
 while keeping historical references such as `schedules.created_by` valid.
 
+**The signed-in administrator's own account is protected.** They cannot change
+their own role away from `ADMIN`, and cannot archive or deactivate themselves,
+through any endpoint. This prevents an administrator from accidentally locking
+themselves (and possibly everyone) out of the admin area.
+
 ## Authorization summary
 
 | Endpoint | Anonymous | Analyst | Admin |
@@ -114,7 +119,9 @@ Rules:
 - An analyst sending `user_role` or `user_status` gets `403`, so they cannot
   promote or reactivate themselves.
 - An administrator cannot demote or archive their own account (`422`), which
-  would otherwise lock them out of the admin area.
+  would otherwise lock them out of the admin area. This holds for both input
+  spellings (`user_role`/`role`, `user_status`/`status`) and on `PUT /profile`
+  as well as `PUT /user/<self>`, since both share one implementation.
 - When an analyst changes their own password, `current_password` is required
   (`422 CURRENT_PASSWORD_REQUIRED`) and must match
   (`422 INVALID_CURRENT_PASSWORD`). An administrator resetting somebody else's
