@@ -609,7 +609,7 @@ def add_user():
 @app.get("/user/<user_id>")
 @login_required
 def get_user(user_id):
-    response= Users().get_user(user_id)
+    response = Users().get_user(user_id)
     if response:
         return response, 200
     else:
