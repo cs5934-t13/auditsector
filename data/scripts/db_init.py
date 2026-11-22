@@ -59,4 +59,5 @@ def init_db(sql_dir):
     
 
 if __name__ == "__main__":
-    init_db("/sql")
+    init_db("./sql")
+    print("Database initialization complete")
