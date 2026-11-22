@@ -2,12 +2,17 @@
 
 `GET` is public because the sign-in page shows the organization name and the
 password reset message before a session exists; `PUT` is administrator only.
+
+`organization_name` is plain text. The other three are rich text: a small,
+validated subset of HTML (see `richtext.py`) so an administrator can format them
+in the settings editor.
 """
 
 import pymysql
 from flask import Blueprint, request
 
 import db
+import richtext
 import routing
 from auth import admin_required
 
@@ -20,7 +25,13 @@ SETTINGS_FIELDS = {
     "organization_name": "organization_name",
     "password_reset_message": "password_reset_message",
     "general_help": "general_help",
+    "contact": "contact",
 }
+
+#: Fields that accept the validated HTML subset. Anything else is plain text.
+RICH_TEXT_FIELDS = frozenset(
+    {"password_reset_message", "general_help", "contact"}
+)
 
 SETTINGS_MAX_LENGTH = 2000
 
@@ -28,7 +39,7 @@ SETTINGS_MAX_LENGTH = 2000
 def read_settings(cur):
     """Returns the settings row as a dict, creating it if absent."""
     cur.execute("""
-        SELECT organization_name, password_reset_message, general_help
+        SELECT organization_name, password_reset_message, general_help, contact
         FROM app_settings
         WHERE settings_id = 1;
     """)
@@ -40,7 +51,7 @@ def read_settings(cur):
             VALUES (1);
         """)
         cur.execute("""
-            SELECT organization_name, password_reset_message, general_help
+            SELECT organization_name, password_reset_message, general_help, contact
             FROM app_settings
             WHERE settings_id = 1;
         """)
@@ -101,6 +112,26 @@ def update_settings():
                 f"'{field}' must be at most {SETTINGS_MAX_LENGTH} characters.",
                 400,
             )
+
+        if field in RICH_TEXT_FIELDS:
+            # A value such as `<p><br></p>` is a non-empty string but shows
+            # nothing, so treat it as empty rather than storing a blank panel.
+            if richtext.is_visually_empty(value):
+                return routing.error_response(
+                    "INVALID_SETTINGS",
+                    f"'{field}' must not be empty.",
+                    400,
+                )
+
+            # Reject markup outside the allowed subset instead of rewriting it:
+            # see the module docstring in `richtext.py` for why.
+            problem = richtext.validate_rich_text(value)
+            if problem is not None:
+                return routing.error_response(
+                    "INVALID_SETTINGS",
+                    f"'{field}' contains invalid formatting: {problem}",
+                    400,
+                )
 
         updates[column] = value
 

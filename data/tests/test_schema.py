@@ -18,7 +18,7 @@ TEST_PASSWORD = "abc123"  # plaintext of the hash seeded in init_data.sql
 EXPECTED_TABLES = {
     "audit_headers", "tags", "audit_tags",
     "schedules", 
-    "users"
+    "users", "app_settings"
 }
 
 
@@ -43,6 +43,23 @@ def test_users_columns(cur):
     )
     cols = {r["COLUMN_NAME"] for r in cur.fetchall()}
     for col in EXPECTED_USER_COLS:
+        assert col in cols
+
+
+EXPECTED_SETTINGS_COLS = {
+    "settings_id", "organization_name", "password_reset_message",
+    "general_help", "contact", "updated_at",
+}
+
+
+def test_settings_columns(cur):
+    """`contact` is read by the API and rendered in the footer, so it must exist."""
+    cur.execute(
+        "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'app_settings'"
+    )
+    cols = {r["COLUMN_NAME"] for r in cur.fetchall()}
+    for col in EXPECTED_SETTINGS_COLS:
         assert col in cols
 
 

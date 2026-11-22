@@ -121,6 +121,13 @@ def test_late_columns_cover_the_tag_rule():
     assert ("tags", "boundary") in columns
 
 
+def test_late_columns_cover_the_contact_setting():
+    """`init_settings.sql` is CREATE TABLE IF NOT EXISTS, so a legacy
+    `app_settings` table needs `contact` added explicitly."""
+    columns = {(table, column) for table, column, _ in db_init.LATE_COLUMNS}
+    assert ("app_settings", "contact") in columns
+
+
 def test_missing_files_raise_before_connecting(tmp_path):
     """A bad directory fails with one clear error, not a partial initialization."""
     with pytest.raises(FileNotFoundError) as raised:

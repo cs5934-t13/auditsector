@@ -9,6 +9,7 @@ import AccountSettingsForm from '../components/AccountSettingsForm';
 import AdminSettingsForm from '../components/AdminSettingsForm';
 import PageSection from '../components/PageSection';
 import Prose from '../components/Prose';
+import RichText from '../components/RichText';
 import SectionPanel from '../components/SectionPanel';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useAuth } from '../auth/AuthContext';
@@ -24,7 +25,7 @@ function GeneralSettings() {
       <Typography id="help-heading" variant="h5" component="h2" gutterBottom>
         Help
       </Typography>
-      <Prose>{settings.generalHelp}</Prose>
+      <RichText value={settings.generalHelp} sx={{ maxWidth: 720 }} />
 
       <Divider sx={{ my: 2.5 }} />
 

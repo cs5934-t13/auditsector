@@ -9,6 +9,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import Link from '@mui/material/Link';
+import RichText from './RichText';
 import SectionPanel from './SectionPanel';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
@@ -210,8 +211,8 @@ export default function LoginCard() {
               </DialogContentText>
             </Stack>
           ) : (
-            <DialogContentText id="password-reset-description">
-              {settings.passwordResetMessage}
+            <DialogContentText id="password-reset-description" component="div">
+              <RichText value={settings.passwordResetMessage} />
             </DialogContentText>
           )}
         </DialogContent>

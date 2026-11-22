@@ -5,8 +5,12 @@
 Read and update the organization-wide text shown throughout the application.
 The values are stored in the single-row `app_settings` table
 (`data/scripts/init_settings.sql`) and are the source of truth for the header
-locality, the "Forgot password?" message, and the Help section on the Settings
-page.
+locality, the "Forgot password?" message, the Help section on the Settings
+page, and the footer's Contact column.
+
+`organization_name` is plain text. `password_reset_message`, `general_help`, and
+`contact` are **rich text**: a small, validated subset of HTML so an
+administrator can apply formatting in the Settings editor.
 
 ## GET /settings
 
@@ -23,8 +27,9 @@ before a session exists.
 {
   "data": {
     "organization_name": "City of Alexandria",
-    "password_reset_message": "To reset your password, contact the administrators.",
-    "general_help": "For help using AuditSector, review the guidance below or contact your administrator."
+    "password_reset_message": "<p>To reset your password, contact the administrators.</p>",
+    "general_help": "<p>For help using Audit Sector, review the guidance below or contact your administrator.</p>",
+    "contact": "<p>Contact us at <a href=\"mailto:team@auditsector.example\">team@auditsector.example</a>.</p>"
   }
 }
 ```
@@ -47,16 +52,48 @@ rejected rather than silently ignored.
 ```json
 {
   "organization_name": "City of Alexandria",
-  "password_reset_message": "Contact the help desk.",
-  "general_help": "Start with Audit Reports."
+  "password_reset_message": "<p>Contact the <strong>help desk</strong>.</p>",
+  "general_help": "<p>Start with Audit Reports.</p>",
+  "contact": "<p><a href=\"mailto:helpdesk@example.gov\">helpdesk@example.gov</a></p>"
 }
 ```
 
 | Field | Type | Constraints |
 |---|---|---|
-| `organization_name` | string | non-empty, ≤ 2000 characters |
-| `password_reset_message` | string | non-empty, ≤ 2000 characters |
-| `general_help` | string | non-empty, ≤ 2000 characters |
+| `organization_name` | string | plain text; non-empty, ≤ 2000 characters |
+| `password_reset_message` | string | rich text; non-empty, ≤ 2000 characters |
+| `general_help` | string | rich text; non-empty, ≤ 2000 characters |
+| `contact` | string | rich text; non-empty, ≤ 2000 characters |
+
+### Rich text
+
+The three rich-text fields accept this subset of HTML and nothing else:
+
+| Tag | Attributes |
+|---|---|
+| `p`, `br` | — |
+| `strong`, `b`, `em`, `i`, `u` | — |
+| `ul`, `ol`, `li` | — |
+| `a` | `href` — must start with `http://`, `https://`, `mailto:`, `#`, or `/` |
+
+Validation is a **reject**, not a rewrite: a value containing any other tag or
+attribute is refused with `400 INVALID_SETTINGS` naming the offending construct.
+That is deliberate — silently stripping markup would discard an administrator's
+formatting and is where sanitizer bypasses hide.
+
+Plain text remains valid (it has no tags), so rows written before rich text
+existed still save. On read, the client converts a tag-free value to HTML so
+line breaks survive, and re-sanitizes every value before rendering: a row edited
+directly in the database cannot inject markup.
+
+A visually empty value — `<p></p>`, `<p><br></p>`, `<p>&nbsp;</p>` — is rejected
+the same way an empty string is.
+
+The Settings editor also exposes an **HTML** view, so an administrator can paste
+source directly. The client sanitizes that source when the field loses focus and
+again before saving, so the request body still matches the table above; a value
+the editor cannot repair (for example a list inside a paragraph) is rejected by
+the rules in this section.
 
 ### Successful Response
 

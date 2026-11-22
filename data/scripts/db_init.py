@@ -82,6 +82,14 @@ def init_db(sql_dir):
 LATE_COLUMNS = [
     ("tags", "description", "TEXT NULL"),
     ("tags", "boundary", "TEXT NULL"),
+    (
+        "app_settings",
+        "contact",
+        "VARCHAR(2000) NOT NULL "
+        "DEFAULT '<p>Contact us at "
+        '<a href="mailto:team@auditsector.example">team@auditsector.example</a>'
+        ".</p>'",
+    ),
 ]
 
 

@@ -6,13 +6,26 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { updateAppSettings } from '../api/settings';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { isRichTextEmpty, sanitizeRichText } from '../utils/richtext';
+import RichTextEditor from './RichTextEditor';
 import SectionPanel from './SectionPanel';
 
 interface FormValues {
   organizationName: string;
   passwordResetMessage: string;
   generalHelp: string;
+  contact: string;
 }
+
+/** Rich-text fields, in display order, for the empty-value check. */
+const RICH_TEXT_FIELDS = [
+  { key: 'passwordResetMessage', label: 'Password Help' },
+  { key: 'generalHelp', label: 'General Help' },
+  { key: 'contact', label: 'Contact' },
+] as const satisfies readonly {
+  key: keyof FormValues;
+  label: string;
+}[];
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -30,6 +43,7 @@ export default function AdminSettingsForm() {
     organizationName: settings.organizationName,
     passwordResetMessage: settings.passwordResetMessage,
     generalHelp: settings.generalHelp,
+    contact: settings.contact,
   });
   const [status, setStatus] = useState<SaveStatus>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -42,18 +56,53 @@ export default function AdminSettingsForm() {
       setError(null);
     };
 
+  /** The editors hand back HTML, not a DOM event. */
+  const setRichTextField =
+    (field: keyof FormValues) =>
+    (html: string) => {
+      setValues((current) => ({ ...current, [field]: html }));
+      setStatus('idle');
+      setError(null);
+    };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setStatus('saving');
     setError(null);
 
-    applySettings(values);
+    // Values typed in the HTML view are passed through untouched while editing,
+    // so sanitize here: this is the last point before the API call, and it means
+    // a hand-edited value gets exactly the same treatment as an editor one.
+    const sanitized: FormValues = {
+      ...values,
+      passwordResetMessage: sanitizeRichText(values.passwordResetMessage),
+      generalHelp: sanitizeRichText(values.generalHelp),
+      contact: sanitizeRichText(values.contact),
+    };
+
+    // The editors can be visually empty while still holding markup such as
+    // `<p><br></p>`. The backend rejects an empty value, so catch it here and
+    // name the field instead of reporting a generic failure.
+    const emptyField = RICH_TEXT_FIELDS.find(({ key }) =>
+      isRichTextEmpty(sanitized[key]),
+    );
+
+    if (emptyField) {
+      setStatus('error');
+      setError(`${emptyField.label} must not be empty.`);
+      return;
+    }
+
+    setStatus('saving');
+
+    setValues(sanitized);
+    applySettings(sanitized);
 
     try {
       await updateAppSettings({
-        organization_name: values.organizationName,
-        password_reset_message: values.passwordResetMessage,
-        general_help: values.generalHelp,
+        organization_name: sanitized.organizationName,
+        password_reset_message: sanitized.passwordResetMessage,
+        general_help: sanitized.generalHelp,
+        contact: sanitized.contact,
       });
       setStatus('saved');
     } catch (err) {
@@ -69,6 +118,7 @@ export default function AdminSettingsForm() {
       organizationName: settings.organizationName,
       passwordResetMessage: settings.passwordResetMessage,
       generalHelp: settings.generalHelp,
+      contact: settings.contact,
     });
     setStatus('idle');
     setError(null);
@@ -105,27 +155,36 @@ export default function AdminSettingsForm() {
           required
         />
 
-        <TextField
+        <RichTextEditor
           id="setting-password-reset"
           label="Password Help"
           value={values.passwordResetMessage}
-          onChange={setField('passwordResetMessage')}
+          onChange={setRichTextField('passwordResetMessage')}
           helperText="Shown in the modal when a user selects “Forgot password?”."
-          multiline
+          placeholder="Explain how a user should reset their password."
           minRows={2}
-          fullWidth
           required
         />
 
-        <TextField
+        <RichTextEditor
           id="setting-general-help"
           label="General Help"
           value={values.generalHelp}
-          onChange={setField('generalHelp')}
+          onChange={setRichTextField('generalHelp')}
           helperText="Shown above the help section on this page."
-          multiline
+          placeholder="Describe where users should start, or who to contact."
           minRows={3}
-          fullWidth
+          required
+        />
+
+        <RichTextEditor
+          id="setting-contact"
+          label="Contact"
+          value={values.contact}
+          onChange={setRichTextField('contact')}
+          helperText="Shown in the footer's Contact column."
+          placeholder="e.g. helpdesk@example.gov or a phone number"
+          minRows={2}
           required
         />
 

@@ -64,9 +64,9 @@ See `authentication/` for the shared Argon2 password verification helper and
 
 ## Tests
 
-`tests/` verifies the schema. It does **not** yet cover `app_settings`;
-`EXPECTED_TABLES` in `tests/test_schema.py` still lists only the five original
-tables, so the new table is untested.
+`tests/` verifies the schema. `EXPECTED_TABLES` in `tests/test_schema.py`
+lists `app_settings`, and `test_settings_columns` asserts the settings column
+set (including `contact`).
 
 
 ## Updating an existing database for AW-98
