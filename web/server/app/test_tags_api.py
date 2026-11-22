@@ -2,7 +2,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch, MagicMock
 
-from app import app, _slugify
+from app import app
+from services.tags.tags import slugify
 
 
 class TestTagSlug(unittest.TestCase):
@@ -18,12 +19,12 @@ class TestTagSlug(unittest.TestCase):
             "Accounts Payable and Vendors": "accounts-payable-and-vendors",
         }
         for raw, expected in cases.items():
-            self.assertEqual(_slugify(raw), expected, raw)
+            self.assertEqual(slugify(raw), expected, raw)
 
     def test_rejects_empty_results(self):
-        self.assertEqual(_slugify("   "), "")
-        self.assertEqual(_slugify("---"), "")
-        self.assertEqual(_slugify("!!!"), "")
+        self.assertEqual(slugify("   "), "")
+        self.assertEqual(slugify("---"), "")
+        self.assertEqual(slugify("!!!"), "")
 
 
 def _audit_row(audit_id=1, title="Report"):
@@ -72,7 +73,7 @@ class TestTagsIndexEndpoint(unittest.TestCase):
             {"tag_id": 2, "name": "Fixed Assets", "report_count": 3},
         ]
 
-        with patch("app.get_db_connection", return_value=self._connection(rows)):
+        with patch("db.get_db_connection", return_value=self._connection(rows)):
             response = self.client.get("/tags")
 
         self.assertEqual(response.status_code, 200)
@@ -90,7 +91,7 @@ class TestTagsIndexEndpoint(unittest.TestCase):
         self._sign_in()
         rows = [{"tag_id": 1, "name": "Inventory", "report_count": None}]
 
-        with patch("app.get_db_connection", return_value=self._connection(rows)):
+        with patch("db.get_db_connection", return_value=self._connection(rows)):
             response = self.client.get("/tags")
 
         self.assertEqual(response.get_json()["data"][0]["report_count"], 0)
@@ -102,7 +103,7 @@ class TestTagsIndexEndpoint(unittest.TestCase):
         import pymysql
 
         self._sign_in()
-        with patch("app.get_db_connection", side_effect=pymysql.MySQLError("boom")):
+        with patch("db.get_db_connection", side_effect=pymysql.MySQLError("boom")):
             response = self.client.get("/tags")
 
         self.assertEqual(response.status_code, 500)
@@ -121,7 +122,7 @@ class TestTagsIndexEndpoint(unittest.TestCase):
             }
         ]
 
-        with patch("app.get_db_connection", return_value=self._connection(rows)):
+        with patch("db.get_db_connection", return_value=self._connection(rows)):
             response = self.client.get("/tags")
 
         tag = response.get_json()["data"][0]
@@ -141,7 +142,7 @@ class TestTagsIndexEndpoint(unittest.TestCase):
             {"COLUMN_NAME": "description"},
         ]
 
-        with patch("app.get_db_connection",
+        with patch("db.get_db_connection",
                    return_value=self._connection(rows, schema=schema)):
             response = self.client.get("/tags")
 
@@ -228,7 +229,7 @@ class TestTagAuditsEndpoint(unittest.TestCase):
             ],
         )
 
-        with patch("app.get_db_connection", return_value=conn):
+        with patch("db.get_db_connection", return_value=conn):
             response = self.client.get("/tags/information-technology/audits")
 
         self.assertEqual(response.status_code, 200)
@@ -259,7 +260,7 @@ class TestTagAuditsEndpoint(unittest.TestCase):
             {"tag_id": 9, "name": "Information Technology"}, 0, []
         )
 
-        with patch("app.get_db_connection", return_value=conn):
+        with patch("db.get_db_connection", return_value=conn):
             response = self.client.get("/tags/Information%20Technology/audits")
 
         self.assertEqual(response.status_code, 200)
@@ -269,7 +270,7 @@ class TestTagAuditsEndpoint(unittest.TestCase):
         self._sign_in()
         conn, _ = self._connection(None, 0, [])
 
-        with patch("app.get_db_connection", return_value=conn):
+        with patch("db.get_db_connection", return_value=conn):
             response = self.client.get("/tags/does-not-exist/audits")
 
         self.assertEqual(response.status_code, 404)
@@ -281,7 +282,7 @@ class TestTagAuditsEndpoint(unittest.TestCase):
             {"tag_id": 1, "name": "Inventory"}, 0, []
         )
 
-        with patch("app.get_db_connection", return_value=conn):
+        with patch("db.get_db_connection", return_value=conn):
             response = self.client.get("/tags/inventory/audits")
 
         self.assertEqual(response.status_code, 200)
@@ -298,7 +299,7 @@ class TestTagAuditsEndpoint(unittest.TestCase):
             {"tag_id": 9, "name": "Information Technology"}, 2, []
         )
 
-        with patch("app.get_db_connection", return_value=conn):
+        with patch("db.get_db_connection", return_value=conn):
             response = self.client.get("/tags/information-technology/audits?page=5")
 
         body = response.get_json()
@@ -321,7 +322,7 @@ class TestTagAuditsEndpoint(unittest.TestCase):
         import pymysql
 
         self._sign_in()
-        with patch("app.get_db_connection", side_effect=pymysql.MySQLError("boom")):
+        with patch("db.get_db_connection", side_effect=pymysql.MySQLError("boom")):
             response = self.client.get("/tags/information-technology/audits")
 
         self.assertEqual(response.status_code, 500)
@@ -340,7 +341,7 @@ class TestTagAuditsEndpoint(unittest.TestCase):
             [],
         )
 
-        with patch("app.get_db_connection", return_value=conn):
+        with patch("db.get_db_connection", return_value=conn):
             response = self.client.get("/tags/fixed-assets/audits")
 
         tag = response.get_json()["tag"]
@@ -363,7 +364,7 @@ class TestTagAuditsEndpoint(unittest.TestCase):
             schema=schema,
         )
 
-        with patch("app.get_db_connection", return_value=conn):
+        with patch("db.get_db_connection", return_value=conn):
             response = self.client.get("/tags/information-technology/audits")
 
         self.assertEqual(response.status_code, 200)

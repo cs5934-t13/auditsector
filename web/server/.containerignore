@@ -1,0 +1,33 @@
+# Build context exclusions for web/server.
+#
+# `Containerfile` does `COPY /app .`, so anything not listed here ships inside
+# the production image. Tests, caches, and local virtualenvs do not belong there:
+# they inflate the image, and a test file that imports pytest in production is
+# noise at best.
+
+# Tests — none of these are imported by the application.
+**/test_*.py
+**/*_test.py
+
+# Test-only helpers (testcontainers wrappers). Application code never imports
+# this package; only the *_test.py files do, and those are excluded above.
+#
+# Patterns are relative to the build context root (`web/server`), not to the
+# WORKDIR, so the path includes the leading `app/`.
+app/services/testing
+
+# Python caches and local environments.
+**/__pycache__
+**/*.py[cod]
+.venv
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Editor and OS noise.
+.DS_Store
+*.swp
+
+# Deployment metadata that is not part of the app.
+Containerfile
+.containerignore

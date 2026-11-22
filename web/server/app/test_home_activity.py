@@ -2,13 +2,13 @@ import unittest
 from datetime import date
 from unittest.mock import patch, MagicMock
 
-from app import (
-    app,
-    _bucket_label,
-    _bucket_period,
-    _bucket_start,
-    _next_bucket,
-    parse_activity_range,
+from app import app
+from services.audits.audits import (
+    bucket_label,
+    bucket_period,
+    bucket_start,
+    next_bucket,
+    parse_range,
 )
 
 
@@ -17,19 +17,19 @@ class TestActivityBucketMath(unittest.TestCase):
 
     def test_day_buckets_step_one_day(self):
         day = date(2026, 3, 15)
-        self.assertEqual(_next_bucket(day, "DAY"), date(2026, 3, 16))
-        self.assertEqual(_bucket_start(day, "DAY"), day)
+        self.assertEqual(next_bucket(day, "DAY"), date(2026, 3, 16))
+        self.assertEqual(bucket_start(day, "DAY"), day)
 
     def test_week_buckets_start_on_monday(self):
         # 2026-03-15 is a Sunday; its ISO week starts on the 9th.
         sunday = date(2026, 3, 15)
         monday = date(2026, 3, 9)
-        self.assertEqual(_bucket_start(sunday, "WEEK"), monday)
-        self.assertEqual(_next_bucket(monday, "WEEK"), date(2026, 3, 16))
-        self.assertEqual(_bucket_start(monday, "WEEK"), monday)
+        self.assertEqual(bucket_start(sunday, "WEEK"), monday)
+        self.assertEqual(next_bucket(monday, "WEEK"), date(2026, 3, 16))
+        self.assertEqual(bucket_start(monday, "WEEK"), monday)
 
     def test_month_buckets_snap_to_the_first(self):
-        self.assertEqual(_bucket_start(date(2026, 1, 31), "MONTH"), date(2026, 1, 1))
+        self.assertEqual(bucket_start(date(2026, 1, 31), "MONTH"), date(2026, 1, 1))
 
     def test_month_steps_survive_short_months(self):
         # Walking Jan → Dec across a non-leap year must not skip February.
@@ -37,19 +37,19 @@ class TestActivityBucketMath(unittest.TestCase):
         seen = []
         for _ in range(12):
             seen.append(bucket.month)
-            bucket = _next_bucket(bucket, "MONTH")
+            bucket = next_bucket(bucket, "MONTH")
         self.assertEqual(seen, list(range(1, 13)))
         self.assertEqual(bucket, date(2027, 1, 1))
 
     def test_month_step_ends_year_correctly(self):
-        self.assertEqual(_next_bucket(date(2026, 12, 1), "MONTH"), date(2027, 1, 1))
-        self.assertEqual(_next_bucket(date(2026, 1, 1), "MONTH"), date(2026, 2, 1))
+        self.assertEqual(next_bucket(date(2026, 12, 1), "MONTH"), date(2027, 1, 1))
+        self.assertEqual(next_bucket(date(2026, 1, 1), "MONTH"), date(2026, 2, 1))
 
     def test_period_and_label_formats(self):
-        self.assertEqual(_bucket_period(date(2026, 1, 1), "MONTH"), "2026-01")
-        self.assertEqual(_bucket_label(date(2026, 1, 1), "MONTH"), "Jan")
-        self.assertEqual(_bucket_period(date(2026, 3, 9), "WEEK"), "2026-03-09")
-        self.assertEqual(_bucket_label(date(2026, 3, 9), "WEEK"), "Mar 9")
+        self.assertEqual(bucket_period(date(2026, 1, 1), "MONTH"), "2026-01")
+        self.assertEqual(bucket_label(date(2026, 1, 1), "MONTH"), "Jan")
+        self.assertEqual(bucket_period(date(2026, 3, 9), "WEEK"), "2026-03-09")
+        self.assertEqual(bucket_label(date(2026, 3, 9), "WEEK"), "Mar 9")
 
 
 class TestParseActivityRange(unittest.TestCase):
@@ -59,7 +59,9 @@ class TestParseActivityRange(unittest.TestCase):
 
     def _parse(self, query=""):
         with app.test_request_context(f"/audits/risk-over-time{query}"):
-            return parse_activity_range()
+            from flask import request
+
+            return parse_range(request.args)
 
     def test_explicit_range_is_inclusive_and_end_is_exclusive(self):
         start, end, interval, buckets = self._parse(
@@ -76,7 +78,7 @@ class TestParseActivityRange(unittest.TestCase):
         self.assertEqual(len(buckets), 12)
         # Default buckets are consecutive first-of-month dates.
         for previous, following in zip(buckets, buckets[1:]):
-            self.assertEqual(_next_bucket(previous, "MONTH"), following)
+            self.assertEqual(next_bucket(previous, "MONTH"), following)
 
     def test_interval_is_case_insensitive(self):
         _, _, interval, _ = self._parse("?interval=day")
@@ -141,7 +143,7 @@ class TestActivityEndpoints(unittest.TestCase):
             {"bucket": date(2026, 2, 1), "level": "UNRATED", "total": 1},
         ]
 
-        with patch("app.get_db_connection", return_value=self._connection(rows)):
+        with patch("db.get_db_connection", return_value=self._connection(rows)):
             response = self.client.get(
                 "/audits/risk-over-time"
                 "?start_date=2026-01-01&end_date=2026-03-31&interval=MONTH"
@@ -168,7 +170,7 @@ class TestActivityEndpoints(unittest.TestCase):
             for level in ("INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL", "UNRATED")
         ]
 
-        with patch("app.get_db_connection", return_value=self._connection(rows)):
+        with patch("db.get_db_connection", return_value=self._connection(rows)):
             response = self.client.get(
                 "/audits/risk-over-time"
                 "?start_date=2026-01-01&end_date=2026-01-31&interval=MONTH"
@@ -184,7 +186,7 @@ class TestActivityEndpoints(unittest.TestCase):
         # WEEK group-by returns DATE columns, which pymysql yields as date.
         rows = [{"bucket": date(2026, 3, 9), "level": "LOW", "total": 4}]
 
-        with patch("app.get_db_connection", return_value=self._connection(rows)):
+        with patch("db.get_db_connection", return_value=self._connection(rows)):
             response = self.client.get(
                 "/audits/risk-over-time"
                 "?start_date=2026-03-09&end_date=2026-03-15&interval=WEEK"
@@ -200,7 +202,7 @@ class TestActivityEndpoints(unittest.TestCase):
         self._sign_in()
         rows = [{"bucket": date(2026, 2, 1), "total": 5}]
 
-        with patch("app.get_db_connection", return_value=self._connection(rows)):
+        with patch("db.get_db_connection", return_value=self._connection(rows)):
             response = self.client.get(
                 "/audits/scan-activity"
                 "?start_date=2026-01-01&end_date=2026-03-31&interval=MONTH"
@@ -216,7 +218,7 @@ class TestActivityEndpoints(unittest.TestCase):
         # A MONTH group-by returns DATE_FORMAT output, i.e. a string.
         rows = [{"bucket": "2026-01-01", "total": 3}]
 
-        with patch("app.get_db_connection", return_value=self._connection(rows)):
+        with patch("db.get_db_connection", return_value=self._connection(rows)):
             response = self.client.get(
                 "/audits/scan-activity"
                 "?start_date=2026-01-01&end_date=2026-01-31&interval=MONTH"
@@ -241,7 +243,7 @@ class TestActivityEndpoints(unittest.TestCase):
         import pymysql
 
         self._sign_in()
-        with patch("app.get_db_connection", side_effect=pymysql.MySQLError("boom")):
+        with patch("db.get_db_connection", side_effect=pymysql.MySQLError("boom")):
             for path in ("/audits/risk-over-time", "/audits/scan-activity"):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 500, path)

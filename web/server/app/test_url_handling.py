@@ -49,7 +49,7 @@ class TestTrailingSlash(unittest.TestCase):
 
         for path in ("/tags", "/tags/"):
             with self.subTest(path=path):
-                with patch("app.get_db_connection", side_effect=lambda: _connection(rows)):
+                with patch("db.get_db_connection", side_effect=lambda: _connection(rows)):
                     response = self.client.get(path)
                 self.assertEqual(response.status_code, 200, path)
                 self.assertEqual(response.get_json()["data"][0]["name"], "Inventory")
@@ -80,7 +80,7 @@ class TestTrailingSlash(unittest.TestCase):
         """The reported bug: `/api/tags/<tag>/audits/` returned 404."""
         for path in ("/tags/inventory/audits", "/tags/inventory/audits/"):
             with self.subTest(path=path):
-                with patch("app.get_db_connection",
+                with patch("db.get_db_connection",
                            side_effect=self._tag_audits_connection):
                     response = self.client.get(path)
                 self.assertEqual(response.status_code, 200, path)
@@ -109,7 +109,6 @@ class TestLegacyTagEndpointsRemoved(unittest.TestCase):
 
     def test_requests_are_not_served_by_a_tag_handler(self):
         """The URL now hits the SPA/404 path, not a tag payload."""
-        """They now fall through to the SPA/404 handler, not a tag payload."""
         for path in ("/tag", "/tag/2"):
             with self.subTest(path=path):
                 response = self.client.get(path)

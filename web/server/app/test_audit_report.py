@@ -63,7 +63,7 @@ class TestAuditReportEndpoint(unittest.TestCase):
 
         mock_connection = _connection(MODERN_SCHEMA, mock_audit, mock_tags)
 
-        with patch("app.get_db_connection", return_value=mock_connection):
+        with patch("db.get_db_connection", return_value=mock_connection):
             with self.client.session_transaction() as session:
                 session["username"] = "testuser"
 
@@ -97,7 +97,7 @@ class TestAuditReportEndpoint(unittest.TestCase):
 
         mock_connection = _connection(LEGACY_SCHEMA, legacy_audit, legacy_tags)
 
-        with patch("app.get_db_connection", return_value=mock_connection):
+        with patch("db.get_db_connection", return_value=mock_connection):
             with self.client.session_transaction() as session:
                 session["username"] = "testuser"
 
@@ -122,7 +122,7 @@ class TestAuditReportEndpoint(unittest.TestCase):
         mock_connection.__enter__.return_value = mock_connection
         mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
 
-        with patch("app.get_db_connection", return_value=mock_connection):
+        with patch("db.get_db_connection", return_value=mock_connection):
             with self.client.session_transaction() as session:
                 session["username"] = "testuser"
 
