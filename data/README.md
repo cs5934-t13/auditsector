@@ -6,18 +6,19 @@ running. Do not expect it to stay up.
 
 ## Build
 
-The tag must match `pod.yaml`, which references `localhost/db-init:latest`:
+The image tag must match the `data` container in `pod.yaml`:
 
 ```sh
-podman build -t db-init data
+podman build -t data data
 ```
 
 ## What it does
 
 1. Connects to MySQL and creates the `auditsector` database if needed.
-2. Runs `scripts/init_users.sql`, `scripts/init_schedules.sql`,
-   `scripts/init_audits.sql`, and `scripts/init_settings.sql` in that order.
-3. Appends `scripts/init_data.sql` when `LOAD_DUMMY_DATA=true`.
+2. Runs the SQL files in `SQL_FILES` order:
+   `init_users.sql`, `init_schedules.sql`, `init_audits.sql`,
+   `init_tag_data.sql`, `init_settings.sql`, `init_fetches.sql`.
+3. Appends `init_data.sql` when `LOAD_DUMMY_DATA=true`.
 
 It retries the connection up to 30 times with a 2 second delay, so it survives
 being started before MySQL is ready. Startup order in the pod is not guaranteed,
@@ -25,7 +26,14 @@ which is why the retry loop exists.
 
 Every statement is `CREATE TABLE IF NOT EXISTS`, so re-running against an
 existing volume is safe but **will not migrate** a table whose definition changed.
-Remove the MySQL volume for a clean rebuild (see the root `README.md`).
+This is the usual cause of `Unknown column` errors after a schema change: the
+container starts, exits `0`, and the old table survives untouched. Remove the
+MySQL volume for a clean rebuild (see the root `README.md`, *Stopping and
+resetting*).
+
+For databases that must keep their data, `data/migrations/scheduler_fetcher.py`
+inspects an existing schema and can add the columns and keys the scheduler needs;
+run it without arguments to review the plan, then with `--apply`.
 
 ## Environment
 
@@ -48,7 +56,12 @@ Only the `db` container serves MySQL (port `3306`).
 | `init_audits.sql` | `audit_headers`, `tags`, `audit_tags` |
 | `init_tag_data.sql` | Seed tags (the initial, open tag set) |
 | `init_settings.sql` | `app_settings` (single row, `settings_id = 1`) |
+| `init_fetches.sql` | `fetches` (one row per downloaded report URL) |
 | `init_data.sql` | demo rows, including a seeded user for tests |
+
+`audit_headers.audit_id` is `CHAR(36)` and has no default, so the writer must
+supply a UUID; `audit_url` is `TEXT NOT NULL` and holds the link to the report
+PDF. Tags, users and schedules keep auto-increment integer keys.
 
 `init_tag_data.sql` runs on every deployment, not only with
 `LOAD_DUMMY_DATA=true`: the tags are seed data, not demo data. It uses

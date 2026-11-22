@@ -90,6 +90,12 @@ LATE_COLUMNS = [
         '<a href="mailto:team@auditsector.example">team@auditsector.example</a>'
         ".</p>'",
     ),
+    # Existing reports predate these. The server only selects them when present
+    # and the client turns an empty URL into "no link", so backfilling with the
+    # column default is safe. audit_url has no DEFAULT clause because TEXT
+    # columns are backfilled with '' when added as NOT NULL.
+    ("audit_headers", "muni", "VARCHAR(255) NOT NULL DEFAULT ''"),
+    ("audit_headers", "audit_url", "TEXT NOT NULL"),
 ]
 
 

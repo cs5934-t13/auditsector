@@ -102,19 +102,24 @@ def test_seed_tags_present(cur):
 
 def test_tag_names_are_unique(cur):
     cur.execute("SELECT name, COUNT(*) AS n FROM tags GROUP BY name HAVING n > 1")
-    assert cur.fetchall() == []
+    # fetchall() returns a tuple; compare against an empty sequence rather
+    # than a list, which never compares equal to a tuple.
+    assert cur.fetchall() == ()
 
 
 def test_duplicate_user_rejected(cur):
+    # The dummy-data seed already contains `jsmith`; use a unique username so
+    # this test does not depend on which seed rows happen to be loaded.
+    username = "duplicate_user_test"
     cur.execute("""
         INSERT INTO users (first_name, last_name, email, username, password_hash, user_role, user_status) 
-            VALUES ('John', 'Smith', 'jsmith@vt.edu', 'jsmith', 'abc123', 'ANALYST', 'ACTIVE');
-    """)
+            VALUES ('John', 'Smith', 'jsmith@vt.edu', %s, 'abc123', 'ANALYST', 'ACTIVE');
+    """, (username,))
     with pytest.raises(pymysql.err.IntegrityError):
         cur.execute("""
                 INSERT INTO users (first_name, last_name, email, username, password_hash, user_role, user_status) 
-                    VALUES ('John', 'Smith', 'jsmith@vt.edu', 'jsmith', 'abc123', 'ANALYST', 'ACTIVE');
-        """)
+                    VALUES ('John', 'Smith', 'jsmith@vt.edu', %s, 'abc123', 'ANALYST', 'ACTIVE');
+        """, (username,))
 
 
 def test_valid_authorization():

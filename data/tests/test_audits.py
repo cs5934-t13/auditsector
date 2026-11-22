@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import uuid4
 
 import pymysql
 import pytest
@@ -52,14 +53,22 @@ def insert_schedule(cur, created_by, **overrides):
 
 
 def insert_audit(cur, schedule_id, **overrides):
-    audit = {"schedule_id": schedule_id, **AUDIT, **overrides}
+    # audit_id is CHAR(36) with no default, so the caller supplies a UUID.
+    override_audit_id = "audit_id" in overrides
+    audit = {
+        "audit_id": str(uuid4()),
+        "schedule_id": schedule_id,
+        **AUDIT,
+        **overrides,
+    }
     cols = ", ".join(audit)
     placeholders = ", ".join(["%s"] * len(audit))
     cur.execute(
         f"INSERT INTO audit_headers ({cols}) VALUES ({placeholders})",
         tuple(audit.values()),
     )
-    return cur.lastrowid
+    # Not lastrowid: the primary key is a UUID, not an auto-increment integer.
+    return audit["audit_id"] if not override_audit_id else overrides["audit_id"]
 
 
 def insert_tag(cur, **overrides):
@@ -121,11 +130,13 @@ def test_insert_audit_stores_fields(cur):
 def test_insert_audit_defaults(cur):
     user_id = insert_user(cur)
     schedule_id = insert_schedule(cur, user_id)
+    audit_id = str(uuid4())
     cur.execute(
-        "INSERT INTO audit_headers (schedule_id, title, audit_date) VALUES (%s, %s, %s)",
-        (schedule_id, AUDIT["title"], AUDIT["audit_date"]),
+        "INSERT INTO audit_headers (audit_id, schedule_id, title, audit_date, audit_url) "
+        "VALUES (%s, %s, %s, %s, %s)",
+        (audit_id, schedule_id, AUDIT["title"], AUDIT["audit_date"], AUDIT["audit_url"]),
     )
-    row = get_audit(cur, cur.lastrowid)
+    row = get_audit(cur, audit_id)
 
     assert row["risk_level"] is None
     assert row["run_status"] == "PENDING"
@@ -149,7 +160,11 @@ def test_insert_audit_with_run_status(cur, status):
 # Test that it will error if NOT NULL fields without defaults are left blank
 @pytest.mark.parametrize("missing", ["schedule_id", "title", "audit_date"])
 def test_insert_audit_missing_required_field_rejected(cur, missing):
-    audit = {"schedule_id": insert_schedule(cur, insert_user(cur)), **AUDIT}
+    audit = {
+        "audit_id": str(uuid4()),
+        "schedule_id": insert_schedule(cur, insert_user(cur)),
+        **AUDIT,
+    }
     del audit[missing]
     cols = ", ".join(audit)
     placeholders = ", ".join(["%s"] * len(audit))
@@ -274,10 +289,9 @@ def test_audit_tag_unknown_reference_rejected(cur, missing):
         "audit_id": insert_audit(cur, insert_schedule(cur, insert_user(cur))),
         "tag_id": insert_tag(cur),
     }
-    # Swap the chosen reference for an id one past the highest in use
-    table = "audit_headers" if missing == "audit_id" else "tags"
-    cur.execute(f"SELECT COALESCE(MAX({missing}), 0) + 1 AS missing_id FROM {table}")
-    ids[missing] = cur.fetchone()["missing_id"]
+    # Use an id that cannot exist instead of MAX()+1, which only works for
+    # integer keys; audit_id is a CHAR(36) UUID.
+    ids[missing] = str(uuid4()) if missing == "audit_id" else 999999999
 
     with pytest.raises(pymysql.err.IntegrityError):
         tag_audit(cur, ids["audit_id"], ids["tag_id"])
