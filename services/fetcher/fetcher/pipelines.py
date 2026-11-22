@@ -38,7 +38,12 @@ class SummarizeTagPipeline:
                 if cur.fetchone():
                     continue
             processed = process_audit(store / file["path"])
-            audit = Audit(schedule_id=spider.schedule_id, muni=spider.name)
+            audit = Audit(
+                schedule_id=spider.schedule_id,
+                muni=spider.name,
+                # Link straight to the PDF so the report opens from the UI.
+                audit_url=file["url"],
+            )
             audit.title = processed["file_name"]
             audit.summary = processed["summary"]
             audit.run_status = "COMPLETED"
@@ -51,10 +56,11 @@ class SummarizeTagPipeline:
                 try:
                     cur.execute(
                         """INSERT INTO audit_headers
-                        (audit_id, schedule_id, title, muni, audit_date, risk_level,
-                         run_status, summary, created_at)
+                        (audit_id, schedule_id, title, muni, audit_url, audit_date,
+                         risk_level, run_status, summary, created_at)
                         VALUES (%(audit_id)s, %(schedule_id)s, %(title)s, %(muni)s,
-                         UTC_TIMESTAMP(), %(risk_level)s, %(run_status)s, %(summary)s, UTC_TIMESTAMP())
+                         %(audit_url)s, UTC_TIMESTAMP(), %(risk_level)s,
+                         %(run_status)s, %(summary)s, UTC_TIMESTAMP())
                         """,
                         audit.insert_audit_dict(),
                     )

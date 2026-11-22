@@ -7,6 +7,7 @@ class Audit:
         schedule_id=0,
         title=None,
         muni=None,
+        audit_url=None,
         audit_date=None,
         risk_level=None,
         run_status=None,
@@ -16,6 +17,7 @@ class Audit:
         self.schedule_id = schedule_id
         self.title = title
         self.muni = muni
+        self.audit_url = audit_url
         self.audit_date = audit_date
         self.risk_level = "INFO"
         self.run_status = "PENDING"
@@ -28,6 +30,7 @@ class Audit:
             "schedule_id": self.schedule_id,
             "title": self.title,
             "muni": self.muni,
+            "audit_url": self.audit_url,
             "risk_level": self.risk_level,
             "run_status": self.run_status,
             "summary": self.summary,
