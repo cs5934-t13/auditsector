@@ -223,7 +223,7 @@ def login_user():
 
     try:
         PasswordHasher().verify(row["password_hash"], password)
-    except VerificationError, InvalidHashError:
+    except (VerificationError, InvalidHashError):
         return {"status": "failed", "reason": "invalid credentials"}, 401
 
     # An inactive account must not be able to sign in, even with valid
@@ -657,3 +657,83 @@ def deactivate_user(user_id):
         return "User {id} deleted.", 200
     else:
         abort(500)
+
+
+
+@app.route("/audits/<audit_id>", methods=["GET"])
+@login_required
+def get_audit_report(audit_id):
+    """Retrieve a single audit report with its summary and tags."""
+
+    try:
+        conn = get_db_connection()
+
+        with conn:
+            with conn.cursor() as cur:
+                # Get the audit report information
+                cur.execute("""
+                    SELECT
+                        audit_id,
+                        schedule_id,
+                        title,
+                        muni,
+                        audit_url,
+                        audit_date,
+                        risk_level,
+                        run_status,
+                        summary,
+                        created_at
+                    FROM audit_headers
+                    WHERE audit_id = %s
+                """, (audit_id,))
+
+                audit = cur.fetchone()
+
+                if audit is None:
+                    return error_response(
+                        "AUDIT_NOT_FOUND",
+                        "Audit report not found.",
+                        404,
+                    )
+
+                # Get all tags assigned to the audit
+                cur.execute("""
+                    SELECT
+                        t.tag_id,
+                        t.name,
+                        t.description
+                    FROM audit_tags AS at
+                    JOIN tags AS t
+                        ON at.tag_id = t.tag_id
+                    WHERE at.audit_id = %s
+                    ORDER BY t.name
+                """, (audit_id,))
+
+                tags = cur.fetchall()
+
+        return {
+            "data": {
+                "audit_id": str(audit["audit_id"]),
+                "schedule_id": audit["schedule_id"],
+                "title": audit["title"],
+                "municipality": audit["muni"],
+                "audit_url": audit["audit_url"],
+                "audit_date": audit["audit_date"].isoformat(
+                    timespec="seconds"
+                ),
+                "risk_level": audit["risk_level"],
+                "run_status": audit["run_status"],
+                "summary": audit["summary"],
+                "created_at": audit["created_at"].isoformat(
+                    timespec="seconds"
+                ),
+                "tags": tags,
+            }
+        }, 200
+
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to retrieve audit report.",
+            500,
+        )

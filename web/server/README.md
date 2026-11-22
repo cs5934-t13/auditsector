@@ -51,6 +51,8 @@ Database host and name are currently hard-coded in `get_db_connection()`
 | `GET /api/settings` | `/settings` | none |
 | `PUT /api/settings` | `/settings` | session + `ADMIN` |
 | `POST /api/sources` | `/sources` | session |
+| `GET /api/audits/recent` | `/audits/recent` | session |
+| `GET /api/audits/<audit_id>` | `/audits/<audit_id>` | session |
 
 `/login` returns `{"status": "approved", "role": "ADMIN" | "ANALYST"}` on
 success and `{"status": "failed"}` otherwise. Roles come from `user_role` on
