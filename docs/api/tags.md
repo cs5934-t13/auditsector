@@ -22,11 +22,17 @@ A trailing slash (`/tags/`) is accepted and returns the same response.
 
 ## Ordering
 
-Tags are ordered by `tag_id`, which is `AUTO_INCREMENT`. The seed in
-`data/scripts/init_tag_data.sql` is inserted in taxonomy order, so this
-reproduces the intended display order (assets, revenue, spending, people,
-programs, technology, compliance) and appends tags added later in insertion
-order — without the server duplicating the name list.
+Tags are ordered alphabetically by `name`, with `tag_id` as the tiebreak.
+
+Name order is what a reader scanning the `/tags` index expects. Ordering by
+`tag_id` (the previous behaviour) showed insertion order instead, which is
+meaningless on the page and pushed a newly added tag to the end regardless of
+where its name falls.
+
+Matching is done by MySQL's collation, so the result follows the database's
+case-insensitive comparison rather than byte order. The `tag_id` tiebreak only
+matters for two names that collate equal (differing only in case or trailing
+spaces), which keeps the response stable across requests.
 
 ## Successful Response
 

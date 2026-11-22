@@ -66,11 +66,16 @@ class TestTagsIndexEndpoint(unittest.TestCase):
         conn.cursor.return_value.__enter__.return_value = cursor
         return conn
 
-    def test_lists_tags_with_counts_in_tag_id_order(self):
+    def test_lists_tags_with_counts(self):
+        """Rows come back in the database's (alphabetical) order, unshaped.
+
+        The service must not re-sort: the SQL orders by name, so a second sort
+        in Python would mask a broken query. This asserts the passthrough.
+        """
         self._sign_in()
         rows = [
-            {"tag_id": 1, "name": "Inventory", "report_count": 0},
             {"tag_id": 2, "name": "Fixed Assets", "report_count": 3},
+            {"tag_id": 1, "name": "Inventory", "report_count": 0},
         ]
 
         with patch("db.get_db_connection", return_value=self._connection(rows)):
@@ -80,12 +85,37 @@ class TestTagsIndexEndpoint(unittest.TestCase):
         self.assertEqual(
             response.get_json()["data"],
             [
-                {"tag_id": 1, "name": "Inventory", "report_count": 0,
-                 "description": None, "boundary": None},
                 {"tag_id": 2, "name": "Fixed Assets", "report_count": 3,
+                 "description": None, "boundary": None},
+                {"tag_id": 1, "name": "Inventory", "report_count": 0,
                  "description": None, "boundary": None},
             ],
         )
+
+    def test_index_query_orders_by_name(self):
+        """The index is alphabetical for the reader, not insertion-ordered.
+
+        Asserts the SQL itself, because a mock cannot: the ordering lives in
+        the ORDER BY clause, not in Python.
+        """
+        self._sign_in()
+        captured = []
+
+        def connection():
+            conn = self._connection([])
+            cur = conn.cursor.return_value.__enter__.return_value
+            cur.execute.side_effect = lambda sql, *a, **kw: captured.append(sql)
+            return conn
+
+        with patch("db.get_db_connection", side_effect=connection):
+            self.client.get("/tags")
+
+        index_sql = next(sql for sql in captured if "COUNT(DISTINCT" in sql)
+        # Collapse whitespace so the assertion is about the clause, not layout.
+        normalized = " ".join(index_sql.split())
+        self.assertIn("ORDER BY t.name, t.tag_id", normalized)
+        self.assertNotIn("ORDER BY t.tag_id", normalized.replace(
+            "ORDER BY t.name, t.tag_id", ""))
 
     def test_treats_a_null_count_as_zero(self):
         self._sign_in()

@@ -57,9 +57,13 @@ def list_with_counts():
     tag set is open — users can add tags before any report uses them — so
     dropping empty tags would hide valid destinations from the `/tags` index.
 
-    Ordered by `tag_id`, which is AUTO_INCREMENT. The seed in
-    `data/scripts/init_tag_data.sql` is inserted in taxonomy order, so this
-    reproduces that sequence without duplicating the name list here.
+    Ordered alphabetically by display name. This is a reader-facing index, so
+    name order is what someone scanning the page expects; `tag_id` would show
+    insertion order, which is meaningless to a reader and puts a newly added
+    tag at the end regardless of its name.
+
+    `tag_id` is kept as the tiebreak so two names that collate equal (differing
+    only in case or trailing spaces) still return in a stable order.
     """
     conn = db.get_db_connection()
     with conn:
@@ -77,7 +81,7 @@ def list_with_counts():
                 GROUP BY t.tag_id, t.name
                          {", t.description" if description else ""}
                          {", t.boundary" if boundary else ""}
-                ORDER BY t.tag_id;
+                ORDER BY t.name, t.tag_id;
             """)
             rows = cur.fetchall()
 

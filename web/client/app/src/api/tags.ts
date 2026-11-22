@@ -211,8 +211,10 @@ async function requestJson(
 }
 
 /**
- * Every tag with its report count, in server order (seed/taxonomy order, then
- * any tag added later).
+ * Every tag with its report count, in server order (alphabetical by name).
+ *
+ * The client renders the list as received: sorting again here would hide a
+ * regression in the endpoint and could disagree with the server's collation.
  *
  * Tags with no reports are included, because they are still valid destinations
  * on the `/tags` index.
