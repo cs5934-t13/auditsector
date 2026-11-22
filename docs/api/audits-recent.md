@@ -66,6 +66,12 @@ Each item in `data` contains:
 | `title` | string | `audit_headers.title` | Stored audit title. |
 | `audit_date` | string | `audit_headers.audit_date` | Stored audit date and time. This contract does not establish that it is the publication date. |
 | `created_at` | string | `audit_headers.created_at` | Date and time the audit record was inserted. |
+| `risk_level` | string or `null` | `audit_headers.risk_level` | `INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, or `null` when unclassified. |
+| `tags` | array of strings | `audit_tags` joined to `tags` | Tag names on the report, ordered by name. Empty for an untagged report. |
+
+`risk_level` and `tags` were added so the signed-in homepage can show each
+report's severity and tag links without a request per row. The tags are fetched
+with one additional query for the whole page, not one query per report.
 
 Date and time values use `YYYY-MM-DDTHH:MM:SS`.
 
@@ -99,7 +105,9 @@ The example shows the last page when 41 records exist and the page size is 20.
       "audit_id": "00000000-0000-4000-8000-000000000042",
       "title": "FY 2026 Procurement Audit",
       "audit_date": "2026-09-15T00:00:00",
-      "created_at": "2026-09-30T14:25:00"
+      "created_at": "2026-09-30T14:25:00",
+      "risk_level": "MEDIUM",
+      "tags": ["Procurement", "Regulatory Compliance"]
     }
   ],
   "pagination": {
@@ -111,7 +119,9 @@ The example shows the last page when 41 records exist and the page size is 20.
 }
 ```
 
-An earlier example included office, publication date, scan time, source URL, and risk level. The endpoint does not return those fields; adding them requires a separate backend/contract change.
+The endpoint does not return an auditing office, a scan time, or a source URL.
+`risk_level` and `tags` are returned because both live in tables the endpoint
+already reads.
 
 ## Empty Response
 
@@ -179,7 +189,8 @@ Database credentials, SQL statements, and internal exception details must not ap
 - Return records across users without organization filtering.
 - Include records regardless of `run_status`.
 - Use record creation time to determine recency.
-- Do not return auditing office, report URL, summaries, or tags.
+- Do not return an auditing office, a report URL, or summaries.
+- Return `risk_level` and tag names, which the homepage table renders.
 
 ## Acceptance Criteria
 

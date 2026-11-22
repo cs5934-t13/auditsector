@@ -1,3 +1,4 @@
+import { normalizeRiskLevel } from '../utils/risk.ts';
 import type { RecentAuditRecord } from '../content/recentReports.ts';
 
 export interface RecentAuditsResponse {
@@ -53,7 +54,11 @@ function isAudit(value: unknown): value is RecentAuditRecord {
   return validId
     && typeof value.title === 'string'
     && isStoredDateTime(value.audit_date)
-    && isStoredDateTime(value.created_at);
+    && isStoredDateTime(value.created_at)
+    // `risk_level` is nullable, but a present value must be a real level.
+    && (value.risk_level === null || normalizeRiskLevel(value.risk_level) !== null)
+    && Array.isArray(value.tags)
+    && value.tags.every((tag) => typeof tag === 'string' && tag.trim().length > 0);
 }
 
 function isResponse(value: unknown, page: number, limit: number): value is RecentAuditsResponse {

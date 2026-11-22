@@ -7,6 +7,8 @@ const audit = {
   title: 'Controlled audit',
   audit_date: '2026-09-15T00:00:00',
   created_at: '2026-11-04T10:00:00',
+  risk_level: 'MEDIUM',
+  tags: ['Human Resources'],
 };
 const body = (rows = [audit], page = 1, limit = 20, total = rows.length) => ({
   data: rows,
@@ -70,6 +72,14 @@ const malformed = [
   body([{ ...audit, audit_date: '2026-02-30T00:00:00' }]),
   body([{ ...audit, created_at: '2026-11-04T25:00:00' }]),
   body([{ ...audit, created_at: null }]),
+  // risk_level and tags are part of the contract now, so a row missing them or
+  // carrying an unknown level is malformed rather than partially rendered.
+  body([{ ...audit, risk_level: undefined }]),
+  body([{ ...audit, risk_level: 'SEVERE' }]),
+  body([{ ...audit, tags: undefined }]),
+  body([{ ...audit, tags: null }]),
+  body([{ ...audit, tags: [''] }]),
+  body([{ ...audit, tags: [3] }]),
   body([audit], 2), body([audit], 1, 10),
   { ...body(), pagination: { ...body().pagination, total_items: '1' } },
   { ...body(), pagination: { ...body().pagination, total_items: -1 } },

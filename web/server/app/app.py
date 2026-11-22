@@ -1,5 +1,5 @@
 import os
-from datetime import timedelta
+from datetime import date, timedelta
 from functools import wraps
 from urllib.parse import urlparse
 
@@ -129,6 +129,198 @@ def get_recent_audits_pagination():
     return page, limit
 
 
+# --- Activity buckets (risk-over-time and scan-activity) -------------------
+#
+# Both homepage charts aggregate `audit_headers` into time buckets, so the
+# range parsing and bucket arithmetic live here rather than being duplicated in
+# each endpoint.
+
+VALID_INTERVALS = {"DAY", "WEEK", "MONTH"}
+
+#: Months covered by the default range when the caller omits both dates.
+DEFAULT_ACTIVITY_MONTHS = 12
+
+#: Upper bound on buckets per response. A five-year daily range is 1827
+#: buckets; beyond this the request is a mistake rather than a chart.
+MAX_ACTIVITY_BUCKETS = 1000
+
+#: Group-by expression per interval. These are substituted into the query, so
+#: the value must come from this table and never from the request. `%%` escapes
+#: the literal percent signs pymysql would otherwise treat as placeholders.
+_BUCKET_EXPRESSIONS = {
+    "DAY": "DATE({column})",
+    # Monday of the report's week, so buckets are ISO weeks regardless of
+    # MySQL's default week-start setting.
+    "WEEK": "DATE_SUB(DATE({column}), INTERVAL WEEKDAY({column}) DAY)",
+    "MONTH": "DATE_FORMAT({column}, '%%Y-%%m-01')",
+}
+
+
+def _first_of_month(day):
+    """Returns the first day of `day`'s month."""
+    return day.replace(day=1)
+
+
+def _next_bucket(bucket, interval):
+    """Advances one `bucket` start to the next."""
+    if interval == "DAY":
+        return bucket + timedelta(days=1)
+    if interval == "WEEK":
+        return bucket + timedelta(days=7)
+    # Months vary in length, so step from the 28th into the next month instead
+    # of adding a fixed 30 days.
+    return _first_of_month(bucket.replace(day=28) + timedelta(days=4))
+
+
+def _bucket_start(day, interval):
+    """Snaps `day` back to the start of the bucket containing it."""
+    if interval == "WEEK":
+        return day - timedelta(days=day.weekday())
+    if interval == "MONTH":
+        return _first_of_month(day)
+    return day
+
+
+def _bucket_period(bucket, interval):
+    """Stable, sortable identifier for a bucket."""
+    if interval == "MONTH":
+        return f"{bucket.year:04d}-{bucket.month:02d}"
+    return bucket.isoformat()
+
+
+def _bucket_label(bucket, interval):
+    """Short x-axis label, e.g. `Jan` or `Sep 15`."""
+    if interval == "MONTH":
+        return bucket.strftime("%b")
+    return f"{bucket.strftime('%b')} {bucket.day}"
+
+
+def parse_activity_range():
+    """Reads `start_date`, `end_date`, and `interval` off the request.
+
+    Returns `(start, end_exclusive, interval, buckets)`. The default range is
+    the last `DEFAULT_ACTIVITY_MONTHS` months including the current one, which is
+    what the homepage charts want when the caller sends no dates.
+
+    Raises `ValueError` with a client-safe message for a bad request.
+    """
+    interval = request.args.get("interval", "MONTH").upper()
+    if interval not in VALID_INTERVALS:
+        raise ValueError("interval must be one of DAY, WEEK, MONTH")
+
+    end_raw = request.args.get("end_date")
+    start_raw = request.args.get("start_date")
+
+    if end_raw:
+        try:
+            end = date.fromisoformat(end_raw)
+        except ValueError:
+            raise ValueError("end_date must be a calendar date, YYYY-MM-DD")
+    else:
+        end = _first_of_month(date.today())
+        # Move to the last day of the current month.
+        end = _next_bucket(end, "MONTH") - timedelta(days=1)
+
+    if start_raw:
+        try:
+            start = date.fromisoformat(start_raw)
+        except ValueError:
+            raise ValueError("start_date must be a calendar date, YYYY-MM-DD")
+    else:
+        start = _first_of_month(end)
+        for _ in range(DEFAULT_ACTIVITY_MONTHS - 1):
+            start = _first_of_month(start - timedelta(days=1))
+
+    if start > end:
+        raise ValueError("start_date must be on or before end_date")
+
+    buckets = []
+    bucket = _bucket_start(start, interval)
+    while bucket <= end:
+        buckets.append(bucket)
+        bucket = _next_bucket(bucket, interval)
+        if len(buckets) > MAX_ACTIVITY_BUCKETS:
+            raise ValueError(
+                f"the range spans more than {MAX_ACTIVITY_BUCKETS} buckets; "
+                "narrow it or use a larger interval"
+            )
+
+    if not buckets:
+        # Unreachable while `start <= end`, but keeps the caller's contract
+        # explicit: an empty list means "no buckets", never "bad request".
+        raise ValueError("the range contains no buckets")
+
+    return start, _next_bucket(buckets[-1], interval), interval, buckets
+
+
+def _fetch_bucketed_counts(column, interval, start, end_exclusive):
+    """Counts rows per bucket, returned as `{bucket_start: count}`.
+
+    The caller fills missing buckets with zeros, so this only returns buckets
+    that actually contain rows.
+    """
+    expression = _BUCKET_EXPRESSIONS[interval].format(column=column)
+
+    conn = get_db_connection()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT {expression} AS bucket, COUNT(*) AS total
+                FROM audit_headers
+                WHERE {column} >= %s AND {column} < %s
+                GROUP BY bucket;
+                """,
+                (start, end_exclusive),
+            )
+            rows = cur.fetchall()
+
+    counts = {}
+    for row in rows:
+        bucket = row["bucket"]
+        # DATE_FORMAT returns a string; the DATE-based expressions return a
+        # date. Normalize both to a date so lookups match `buckets`.
+        if isinstance(bucket, str):
+            bucket = date.fromisoformat(bucket)
+        counts[bucket] = row["total"]
+
+    return counts
+
+
+def _fetch_bucketed_risk(column, interval, start, end_exclusive):
+    """Counts rows per bucket and risk level.
+
+    Returns `{bucket_start: {level: count}}`, where `level` is one of the
+    database's risk levels or `UNRATED` for a NULL classification.
+    """
+    expression = _BUCKET_EXPRESSIONS[interval].format(column=column)
+
+    conn = get_db_connection()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT {expression} AS bucket,
+                       COALESCE(risk_level, 'UNRATED') AS level,
+                       COUNT(*) AS total
+                FROM audit_headers
+                WHERE {column} >= %s AND {column} < %s
+                GROUP BY bucket, level;
+                """,
+                (start, end_exclusive),
+            )
+            rows = cur.fetchall()
+
+    counts = {}
+    for row in rows:
+        bucket = row["bucket"]
+        if isinstance(bucket, str):
+            bucket = date.fromisoformat(bucket)
+        counts.setdefault(bucket, {})[row["level"]] = row["total"]
+
+    return counts
+
+
 def fetch_recent_audits(page, limit):
     offset = (page - 1) * limit
 
@@ -146,7 +338,7 @@ def fetch_recent_audits(page, limit):
 
             cur.execute(
                 """
-                SELECT audit_id, title, audit_date, created_at
+                SELECT audit_id, title, audit_date, created_at, risk_level
                 FROM audit_headers
                 ORDER BY created_at DESC, audit_id DESC
                 LIMIT %s OFFSET %s;
@@ -156,7 +348,45 @@ def fetch_recent_audits(page, limit):
 
             rows = cur.fetchall()
 
+            # One extra query for the whole page rather than one per row. The
+            # tags are needed for the homepage table, which links each report's
+            # tags to their tag pages without a request per row.
+            tags_by_audit = _tags_for_audits(
+                cur, [row["audit_id"] for row in rows]
+            )
+
+    for row in rows:
+        row["tags"] = tags_by_audit.get(row["audit_id"], [])
+
     return rows, total_items
+
+
+def _tags_for_audits(cur, audit_ids):
+    """Maps each audit id to its tag names, ordered by name.
+
+    Takes an open cursor so the caller can reuse its connection and transaction.
+    Ids with no tags are absent from the mapping; callers default to `[]`.
+    """
+    if not audit_ids:
+        return {}
+
+    placeholders = ", ".join(["%s"] * len(audit_ids))
+    cur.execute(
+        f"""
+        SELECT at.audit_id, t.name
+        FROM audit_tags AS at
+        JOIN tags AS t ON t.tag_id = at.tag_id
+        WHERE at.audit_id IN ({placeholders})
+        ORDER BY t.name;
+        """,
+        tuple(audit_ids),
+    )
+
+    tags_by_audit = {}
+    for row in cur.fetchall():
+        tags_by_audit.setdefault(row["audit_id"], []).append(row["name"])
+
+    return tags_by_audit
 
 
 def _wants_json() -> bool:
@@ -532,7 +762,6 @@ def update_settings():
 def get_tags():
     return Tags().get_tags()
 
-
 @app.route("/tag/<tag_id>", methods=["GET"])
 @login_required
 def get_tag(tag_id):
@@ -566,6 +795,8 @@ def get_recent_audits():
             "title": row["title"],
             "audit_date": row["audit_date"].isoformat(timespec="seconds"),
             "created_at": row["created_at"].isoformat(timespec="seconds"),
+            "risk_level": row["risk_level"],
+            "tags": row["tags"],
         }
         for row in rows
     ]
@@ -579,6 +810,89 @@ def get_recent_audits():
             "total_pages": (total_items + limit - 1) // limit,
         },
     }, 200
+
+
+@app.route("/audits/risk-over-time", methods=["GET"])
+@login_required
+def get_risk_over_time():
+    """Counts audit reports per risk level for each bucket in a date range.
+
+    Backs the homepage "Risk levels over time" chart. Buckets are keyed on
+    `audit_date` (the report's own publication date) rather than `created_at`,
+    so the series follows report timelines instead of when the crawler happened
+    to insert them.
+
+    Every bucket in the range is returned, including empty ones, so the client
+    never has to fill gaps.
+    """
+    try:
+        start, end, interval, buckets = parse_activity_range()
+    except ValueError as invalid:
+        return error_response("INVALID_DATE_RANGE", str(invalid), 400)
+
+    try:
+        counts = _fetch_bucketed_risk("audit_date", interval, start, end)
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to aggregate audit risk levels.",
+            500,
+        )
+
+    data = []
+    for bucket in buckets:
+        levels = counts.get(bucket, {})
+        per_level = {
+            level: levels.get(level, 0)
+            for level in ("INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL")
+        }
+        unrated = levels.get("UNRATED", 0)
+        data.append(
+            {
+                "period": _bucket_period(bucket, interval),
+                "label": _bucket_label(bucket, interval),
+                "total": sum(per_level.values()) + unrated,
+                "counts": {**per_level, "UNRATED": unrated},
+            }
+        )
+
+    return {"data": data}, 200
+
+
+@app.route("/audits/scan-activity", methods=["GET"])
+@login_required
+def get_scan_activity():
+    """Counts audit records added per bucket in a date range.
+
+    Backs the homepage "Reports scanned over time" chart. Buckets are keyed on
+    `created_at`, the moment the record was inserted by the fetcher, which is
+    the closest thing the schema stores to a scan time: `audit_headers` has no
+    completed-at column and `run_status` is a current-state flag.
+    """
+    try:
+        start, end, interval, buckets = parse_activity_range()
+    except ValueError as invalid:
+        return error_response("INVALID_DATE_RANGE", str(invalid), 400)
+
+    try:
+        counts = _fetch_bucketed_counts("created_at", interval, start, end)
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to aggregate scan activity.",
+            500,
+        )
+
+    data = [
+        {
+            "period": _bucket_period(bucket, interval),
+            "label": _bucket_label(bucket, interval),
+            "total": counts.get(bucket, 0),
+        }
+        for bucket in buckets
+    ]
+
+    return {"data": data}, 200
 
 
 def _session_user_id():
@@ -949,32 +1263,74 @@ def deactivate_user(user_id):
 
 
 
+def _audit_optional_columns(cur):
+    """Returns the optional `audit_headers` columns this database actually has.
+
+    `muni`, `audit_url`, and `tags.description` are added by the scheduler/
+    fetcher migration (`data/migrations/scheduler_fetcher.py`). A database that
+    has not run that migration is still valid and readable, so the report
+    endpoint selects them only when present instead of failing with
+    `Unknown column` (which surfaced as a 500 on legacy deployments).
+
+    Returns `{"audit_headers": {"muni", "audit_url"}, "tags": {"description"}}`.
+    """
+    cur.execute(
+        """
+        SELECT TABLE_NAME, COLUMN_NAME
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME IN ('audit_headers', 'tags');
+        """
+    )
+
+    present = {"audit_headers": set(), "tags": set()}
+    for row in cur.fetchall():
+        table = row.get("TABLE_NAME")
+        if table in present:
+            present[table].add(row.get("COLUMN_NAME"))
+
+    return present
+
+
 @app.route("/audits/<audit_id>", methods=["GET"])
 @login_required
 def get_audit_report(audit_id):
-    """Retrieve a single audit report with its summary and tags."""
+    """Retrieve a single audit report with its summary and tags.
 
+    Tolerates a pre-migration schema: `muni`, `audit_url`, and
+    `tags.description` are selected only when the columns exist, and the
+    response reports empty values for the ones that do not.
+    """
     try:
         conn = get_db_connection()
 
         with conn:
             with conn.cursor() as cur:
-                # Get the audit report information
-                cur.execute("""
+                columns = _audit_optional_columns(cur)
+                has_muni = "muni" in columns["audit_headers"]
+                has_url = "audit_url" in columns["audit_headers"]
+                has_tag_description = "description" in columns["tags"]
+
+                # Get the audit report information. The optional columns are
+                # built into the select list so one query covers both schemas.
+                cur.execute(
+                    f"""
                     SELECT
                         audit_id,
                         schedule_id,
                         title,
-                        muni,
-                        audit_url,
                         audit_date,
                         risk_level,
                         run_status,
                         summary,
                         created_at
+                        {", muni" if has_muni else ""}
+                        {", audit_url" if has_url else ""}
                     FROM audit_headers
                     WHERE audit_id = %s
-                """, (audit_id,))
+                    """,
+                    (audit_id,),
+                )
 
                 audit = cur.fetchone()
 
@@ -986,27 +1342,35 @@ def get_audit_report(audit_id):
                     )
 
                 # Get all tags assigned to the audit
-                cur.execute("""
+                cur.execute(
+                    f"""
                     SELECT
                         t.tag_id,
-                        t.name,
-                        t.description
+                        t.name
+                        {", t.description" if has_tag_description else ""}
                     FROM audit_tags AS at
                     JOIN tags AS t
                         ON at.tag_id = t.tag_id
                     WHERE at.audit_id = %s
                     ORDER BY t.name
-                """, (audit_id,))
+                    """,
+                    (audit_id,),
+                )
 
                 tags = cur.fetchall()
+
+        for tag in tags:
+            # Keep one response shape across schemas; the client already treats
+            # a null description as "this tag has no description".
+            tag.setdefault("description", None)
 
         return {
             "data": {
                 "audit_id": str(audit["audit_id"]),
                 "schedule_id": audit["schedule_id"],
                 "title": audit["title"],
-                "municipality": audit["muni"],
-                "audit_url": audit["audit_url"],
+                "municipality": audit.get("muni") or "",
+                "audit_url": audit.get("audit_url") or "",
                 "audit_date": audit["audit_date"].isoformat(
                     timespec="seconds"
                 ),
