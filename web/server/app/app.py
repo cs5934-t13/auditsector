@@ -9,7 +9,6 @@ import pymysql
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from flask import Flask, request, session
-from services.tags.tags import Tags
 from services.users.users import Users
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -28,6 +27,15 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 # Only x_prefix is enabled: trusting x_for/x_host from an arbitrary client would
 # let a caller spoof its own address unless a trusted proxy is configured.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_prefix=1)
+
+# Treat a trailing slash as insignificant on every route.
+#
+# By default Flask matches URLs exactly, so `/api/tags/` is a different route
+# from `/api/tags` and returns 404. That inconsistency punished hand-typed URLs
+# and curl calls while the client happened to always omit the slash. Setting it
+# here fixes every endpoint at once instead of adding `strict_slashes=False` to
+# each decorator and still missing new ones.
+app.url_map.strict_slashes = False
 
 VALID_FREQUENCIES = {"HOURLY", "DAILY", "WEEKLY", "MONTHLY"}
 
@@ -920,25 +928,17 @@ def update_settings():
     return {"data": settings}, 200
 
 
-@app.route("/tag", methods=["GET"])
-@login_required
-def get_tags():
-    return Tags().get_tags()
-
-@app.route("/tag/<tag_id>", methods=["GET"])
-@login_required
-def get_tag(tag_id):
-    return Tags().get_tag(tag_id)
-
-
 @app.route("/tags", methods=["GET"])
 @login_required
 def get_tag_index():
     """Every tag with its report count, for the `/tags` index page.
 
-    Distinct from `GET /tag`, which returns raw `tags` table rows. This is the
-    aggregate the index needs: one entry per tag, including tags that have no
-    reports yet (count 0), ordered in seed/taxonomy order.
+    Returns the aggregate the index needs: one entry per tag, including tags
+    that have no reports yet (count 0), ordered in seed/taxonomy order, with
+    the tagging rule (`description` inclusion, `boundary` exclusion).
+
+    This replaced the older `GET /tag` and `GET /tag/<id>` endpoints, which
+    returned raw `tags` table rows with no counts and had no callers.
     """
     try:
         return {"data": fetch_tags_with_counts()}, 200
@@ -950,7 +950,7 @@ def get_tag_index():
         )
 
 
-@app.route("/tags/<path:tag>/audits", methods=["GET"])
+@app.route("/tags/<string:tag>/audits", methods=["GET"])
 @login_required
 def get_tag_audits(tag):
     """Audit reports carrying one tag, newest first.
@@ -958,6 +958,12 @@ def get_tag_audits(tag):
     `<tag>` may be the display name or the client's slug (`information-technology`);
     `_resolve_tag` applies the same normalization the client uses, so a
     hand-typed URL still resolves.
+
+    The converter is `string`, not `path`: a tag slug can never contain a `/`,
+    and Werkzeug ignores `strict_slashes` on `path:` rules (the converter's
+    greedy match swallows the trailing slash), which made
+    `/tags/inventory/audits/` a hard 404. A percent-encoded slash in a name is
+    still handled because `_resolve_tag` matches on the normalized slug.
 
     A tag with no reports returns `200` and an empty page. An unknown tag is a
     `404`, so the page can offer alternative tags instead of implying the tag
@@ -1526,12 +1532,6 @@ def deactivate_user(user_id):
         )
 
     return {"data": {"user_id": user_id, "user_status": "INACTIVE"}}, 200
-
-    if response:
-        return "User {id} deleted.", 200
-    else:
-        abort(500)
-
 
 
 def _audit_optional_columns(cur):

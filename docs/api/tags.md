@@ -5,8 +5,9 @@
 Returns every tag with the number of distinct audit reports carrying it. Backs
 the `/tags` index page (`web/client/app/src/pages/TagsPage.tsx`).
 
-This is the aggregate the index needs. It is distinct from `GET /tag`, which
-returns raw rows from the `tags` table with no counts.
+This is the aggregate the index needs. It replaced the older `GET /tag` and
+`GET /tag/<tag_id>` endpoints, which returned raw `tags` table rows with no
+counts and had no callers.
 
 ## Request
 
@@ -16,6 +17,8 @@ returns raw rows from the `tags` table with no counts.
 
 No query parameters. The response is small (one row per tag), so it is not
 paginated.
+
+A trailing slash (`/tags/`) is accepted and returns the same response.
 
 ## Ordering
 
@@ -99,4 +102,3 @@ An empty `tags` table returns `200 OK` with `"data": []`.
 
 - `GET /tags/<tag>/audits` — the reports carrying one tag (see
   `tag-audits.md`).
-- `GET /tag` — raw `tags` rows, retained for existing callers.
