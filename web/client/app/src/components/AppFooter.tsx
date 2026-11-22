@@ -131,11 +131,6 @@ export default function AppFooter() {
                   <RichText value={settings.contact} variant="body2" />
                 )}
               </li>
-              <li>
-                <Link href="https://github.com/cs5934-t13/auditsector/" sx={FOOTER_LINK_SX}>
-                  Project repository
-                </Link>
-              </li>
             </Stack>
           </Box>
         </Box>
