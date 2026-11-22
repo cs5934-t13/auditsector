@@ -66,7 +66,7 @@ export default function LandingPage() {
                     <FeatureGrid columns={COMPACT_COLUMNS} sx={{ mt: 3 }}>
             {aboutItems.map((item) => (
               <Box key={item.title}>
-                <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600 }}>
+                <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600 }}>
                   {item.title}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
