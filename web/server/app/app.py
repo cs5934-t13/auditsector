@@ -1,7 +1,9 @@
 import os
+import re
+import unicodedata
 from datetime import date, timedelta
 from functools import wraps
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import pymysql
 from argon2 import PasswordHasher
@@ -127,6 +129,167 @@ def get_recent_audits_pagination():
         raise ValueError("Invalid pagination")
 
     return page, limit
+
+
+def _paginate(total_items, page, limit):
+    """Builds the `pagination` block shared by every paginated endpoint."""
+    return {
+        "page": page,
+        "limit": limit,
+        "total_items": total_items,
+        "total_pages": (total_items + limit - 1) // limit,
+    }
+
+
+def fetch_tags_with_counts():
+    """Every tag with the number of distinct reports carrying it.
+
+    Uses a LEFT JOIN so tags with no reports are still listed (count 0). The
+    tag set is open — users can add tags before any report uses them — so
+    dropping empty tags would hide valid destinations from the `/tags` index.
+
+    `description` and `boundary` are the tagging rule (inclusion and exclusion
+    respectively). `boundary` was added after `description`, so it is selected
+    only when present; a database that has not run the latest init leaves it
+    out rather than failing the whole index.
+
+    Ordered to match the client's taxonomy order: the seed list in
+    `data/scripts/init_tag_data.sql` insertion order first, then anything else
+    alphabetically. `tag_id` is AUTO_INCREMENT and the seed is inserted in
+    taxonomy order, so ordering by it reproduces that sequence without
+    duplicating the name list in the server.
+    """
+    conn = get_db_connection()
+    with conn:
+        with conn.cursor() as cur:
+            columns = _tag_columns(cur)
+            boundary = ", t.boundary" if "boundary" in columns else ""
+            description = ", t.description" if "description" in columns else ""
+
+            cur.execute(f"""
+                SELECT t.tag_id, t.name, COUNT(DISTINCT at.audit_id) AS report_count
+                       {description}
+                       {boundary}
+                FROM tags AS t
+                LEFT JOIN audit_tags AS at ON at.tag_id = t.tag_id
+                GROUP BY t.tag_id, t.name
+                         {", t.description" if description else ""}
+                         {", t.boundary" if boundary else ""}
+                ORDER BY t.tag_id;
+            """)
+            rows = cur.fetchall()
+
+    return [
+        {
+            "tag_id": row["tag_id"],
+            "name": row["name"],
+            "report_count": int(row["report_count"] or 0),
+            "description": row.get("description"),
+            "boundary": row.get("boundary"),
+        }
+        for row in rows
+    ]
+
+
+def _tag_columns(cur):
+    """Column names present on the `tags` table in the active database."""
+    cur.execute(
+        """
+        SELECT COLUMN_NAME
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tags';
+        """
+    )
+    # Ignore rows without the expected key so a simplified test double, or an
+    # unexpected result shape, degrades to "column absent" rather than a 500.
+    return {row["COLUMN_NAME"] for row in cur.fetchall() if "COLUMN_NAME" in row}
+
+
+def _resolve_tag(cur, segment):
+    """Finds the tag whose name matches a URL segment.
+
+    Accepts either the display name or the slug the client builds. Matching is
+    done in Python with `_slugify` rather than in SQL, so it is byte-for-byte
+    the same rule the client applies to route segments (including diacritic
+    stripping, which MySQL's collations do not do consistently).
+
+    The tag set is small and indexed by name, so reading it is cheap. The
+    tagging rule columns are selected when present so the detail page can show
+    them; `boundary` is newer than `description` and may be missing.
+
+    Returns the tag row (`tag_id`, `name`, and rule text when available) or
+    `None`.
+    """
+    wanted = _slugify(unquote(segment))
+    if not wanted:
+        return None
+
+    columns = _tag_columns(cur)
+    cur.execute("SELECT tag_id, name, description FROM tags ORDER BY tag_id;"
+                if "description" in columns
+                else "SELECT tag_id, name, NULL AS description FROM tags ORDER BY tag_id;")
+    candidates = cur.fetchall()
+
+    match = next(
+        (row for row in candidates if _slugify(row["name"]) == wanted),
+        None,
+    )
+    if match is None:
+        return None
+
+    # `boundary` is fetched separately so a database without the column still
+    # resolves tags instead of raising Unknown column.
+    if "boundary" in columns:
+        cur.execute(
+            "SELECT boundary FROM tags WHERE tag_id = %s;", (match["tag_id"],)
+        )
+        row = cur.fetchone() or {}
+        match["boundary"] = row.get("boundary")
+    else:
+        match["boundary"] = None
+
+    return match
+
+
+def _slugify(value):
+    """Client-compatible slug for a tag name or route segment.
+
+    Mirrors `tagSlug()` in `web/client/app/src/utils/tags.ts`: NFKD-normalize,
+    strip combining marks (`Sécurité` -> `securite`), lower-case, collapse every
+    non-alphanumeric run to one hyphen, and drop leading/trailing hyphens.
+    """
+    decomposed = unicodedata.normalize("NFKD", value)
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    slug = re.sub(r"[^a-z0-9]+", "-", stripped.strip().lower())
+    return slug.strip("-")
+
+
+def _tags_for_audits(cur, audit_ids):
+    """Maps each audit id to its tag names, ordered by name.
+
+    Takes an open cursor so the caller can reuse its connection and transaction.
+    Ids with no tags are absent from the mapping; callers default to `[]`.
+    """
+    if not audit_ids:
+        return {}
+
+    placeholders = ", ".join(["%s"] * len(audit_ids))
+    cur.execute(
+        f"""
+        SELECT at.audit_id, t.name
+        FROM audit_tags AS at
+        JOIN tags AS t ON t.tag_id = at.tag_id
+        WHERE at.audit_id IN ({placeholders})
+        ORDER BY t.name;
+        """,
+        tuple(audit_ids),
+    )
+
+    tags_by_audit = {}
+    for row in cur.fetchall():
+        tags_by_audit.setdefault(row["audit_id"], []).append(row["name"])
+
+    return tags_by_audit
 
 
 # --- Activity buckets (risk-over-time and scan-activity) -------------------
@@ -768,6 +931,131 @@ def get_tag(tag_id):
     return Tags().get_tag(tag_id)
 
 
+@app.route("/tags", methods=["GET"])
+@login_required
+def get_tag_index():
+    """Every tag with its report count, for the `/tags` index page.
+
+    Distinct from `GET /tag`, which returns raw `tags` table rows. This is the
+    aggregate the index needs: one entry per tag, including tags that have no
+    reports yet (count 0), ordered in seed/taxonomy order.
+    """
+    try:
+        return {"data": fetch_tags_with_counts()}, 200
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to retrieve tags.",
+            500,
+        )
+
+
+@app.route("/tags/<path:tag>/audits", methods=["GET"])
+@login_required
+def get_tag_audits(tag):
+    """Audit reports carrying one tag, newest first.
+
+    `<tag>` may be the display name or the client's slug (`information-technology`);
+    `_resolve_tag` applies the same normalization the client uses, so a
+    hand-typed URL still resolves.
+
+    A tag with no reports returns `200` and an empty page. An unknown tag is a
+    `404`, so the page can offer alternative tags instead of implying the tag
+    exists but is unused.
+    """
+    try:
+        page, limit = get_recent_audits_pagination()
+    except ValueError:
+        return error_response(
+            "INVALID_PAGINATION",
+            "page must be at least 1 and limit must be between 1 and 100",
+            400,
+        )
+
+    try:
+        conn = get_db_connection()
+        with conn:
+            with conn.cursor() as cur:
+                resolved = _resolve_tag(cur, tag)
+                if resolved is None:
+                    return error_response(
+                        "TAG_NOT_FOUND",
+                        f'No tag matches "{unquote(tag)}"',
+                        404,
+                    )
+
+                tag_id = resolved["tag_id"]
+                offset = (page - 1) * limit
+
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS total_items
+                    FROM audit_tags
+                    WHERE tag_id = %s;
+                    """,
+                    (tag_id,),
+                )
+                total_items = cur.fetchone()["total_items"]
+
+                rows = []
+                if offset < total_items:
+                    cur.execute(
+                        """
+                        SELECT a.audit_id, a.title, a.audit_date, a.created_at,
+                               a.risk_level
+                        FROM audit_tags AS at
+                        JOIN audit_headers AS a ON a.audit_id = at.audit_id
+                        WHERE at.tag_id = %s
+                        ORDER BY a.audit_date DESC, a.audit_id DESC
+                        LIMIT %s OFFSET %s;
+                        """,
+                        (tag_id, limit, offset),
+                    )
+                    rows = cur.fetchall()
+
+                tags_by_audit = _tags_for_audits(
+                    cur, [row["audit_id"] for row in rows]
+                )
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to retrieve audits for tag.",
+            500,
+        )
+
+    return {
+        "data": [
+            _audit_row(row, tags_by_audit.get(row["audit_id"], []))
+            for row in rows
+        ],
+        # The tagging rule travels with the tag so the page can explain what the
+        # tag means next to the reports it selected.
+        "tag": {
+            "tag_id": tag_id,
+            "name": resolved["name"],
+            "description": resolved.get("description"),
+            "boundary": resolved.get("boundary"),
+        },
+        "pagination": _paginate(total_items, page, limit),
+    }, 200
+
+
+def _audit_row(row, tags):
+    """Serializes one audit row for the list endpoints.
+
+    `GET /audits/recent` and `GET /tags/<tag>/audits` return the same row shape,
+    so the serialization lives here to keep the two responses from drifting.
+    """
+    return {
+        "audit_id": row["audit_id"],
+        "title": row["title"],
+        "audit_date": row["audit_date"].isoformat(timespec="seconds"),
+        "created_at": row["created_at"].isoformat(timespec="seconds"),
+        "risk_level": row["risk_level"],
+        "tags": tags,
+    }
+
+
 @app.route("/audits/recent", methods=["GET"])
 @login_required
 def get_recent_audits():
@@ -789,26 +1077,9 @@ def get_recent_audits():
             500,
         )
 
-    data = [
-        {
-            "audit_id": row["audit_id"],
-            "title": row["title"],
-            "audit_date": row["audit_date"].isoformat(timespec="seconds"),
-            "created_at": row["created_at"].isoformat(timespec="seconds"),
-            "risk_level": row["risk_level"],
-            "tags": row["tags"],
-        }
-        for row in rows
-    ]
-
     return {
-        "data": data,
-        "pagination": {
-            "page": page,
-            "limit": limit,
-            "total_items": total_items,
-            "total_pages": (total_items + limit - 1) // limit,
-        },
+        "data": [_audit_row(row, row["tags"]) for row in rows],
+        "pagination": _paginate(total_items, page, limit),
     }, 200
 
 

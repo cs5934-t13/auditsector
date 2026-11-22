@@ -22,7 +22,12 @@ CREATE TABLE IF NOT EXISTS tags(
     tag_id      BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name        VARCHAR(100) NOT NULL UNIQUE,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    description TEXT NULL
+    -- What qualifies a report for this tag ("include when substantially
+    -- examined"). NULL for a tag added without guidance.
+    description TEXT NULL,
+    -- What does *not* qualify, kept separate so the UI can label the two
+    -- halves of the tagging rule instead of running them together.
+    boundary    TEXT NULL
 );
 
 

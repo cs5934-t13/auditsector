@@ -51,6 +51,8 @@ Database host and name are currently hard-coded in `get_db_connection()`
 | `GET /api/settings` | `/settings` | none |
 | `PUT /api/settings` | `/settings` | session + `ADMIN` |
 | `POST /api/sources` | `/sources` | session |
+| `GET /api/tags` | `/tags` | session |
+| `GET /api/tags/<tag>/audits` | `/tags/<tag>/audits` | session |
 | `GET /api/audits/recent` | `/audits/recent` | session |
 | `GET /api/audits/risk-over-time` | `/audits/risk-over-time` | session |
 | `GET /api/audits/scan-activity` | `/audits/scan-activity` | session |
