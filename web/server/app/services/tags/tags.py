@@ -32,6 +32,13 @@ class Tags:
             print(f"Unexpected {err=}, {type(err)=}")
             raise
 
+    def add_tag(self, name):
+        with self.get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute("INSERT INTO tags (name) VALUES (%s)", (name,))
+            tag_id = cur.lastrowid
+            conn.commit()
+        return {"tag_id": tag_id, "name": name}
+
     def get_tag(self, tag_id):
 
         query = """
