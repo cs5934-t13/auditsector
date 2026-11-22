@@ -55,7 +55,8 @@ app/
     ├── AppRoutes.tsx       # Route table, RequireAuth / RequireAdmin guards, lazy pages
     ├── routes.ts           # ROUTES paths, shared by nav and route definitions
     ├── api/
-    │   └── settings.ts     # GET/PUT /api/settings client + fallback defaults
+    │   ├── settings.ts     # GET/PUT /api/settings client + fallback defaults
+    │   └── users.ts        # User management client (GET/POST/PUT/DELETE /api/user, /api/profile)
     ├── auth/
     │   └── AuthContext.tsx # Session state (signIn / signOut / useAuth), roles
     ├── content/
@@ -67,7 +68,7 @@ app/
     │   ├── riskActivity.ts # Placeholder risk-per-period series for the homepage chart
     │   ├── riskLevels.ts   # Risk level labels, descriptions, colors
     │   ├── tags.ts         # Seed tag set (open: users can add/remove tags)
-    │   └── users.ts        # Seed rows for the Manage Users screen (client-side only)
+    │   └── navigation.ts   # Public ("About") vs app navigation
     ├── hooks/
     │   └── useAppSettings.tsx # SettingsProvider / useAppSettings
     ├── pages/
@@ -76,16 +77,18 @@ app/
     │   ├── AuditReportsPage.tsx # Signed in: reports + scan frequency form (lazy)
     │   ├── TagsPage.tsx         # Signed in: tag index, links to /tag/<slug> (lazy)
     │   ├── TagPage.tsx          # Signed in: reports for one tag, /tag/<slug> (lazy)
-    │   ├── SettingsPage.tsx     # Signed in: settings, admin section (lazy)
-    │   └── ManageUsersPage.tsx  # Admin only: user table (lazy)
+    │   ├── SettingsPage.tsx     # Signed in: account, help, admin section (lazy)
+    │   └── ManageUsersPage.tsx  # Admin only: add/edit/archive users (lazy)
     └── components/
         ├── Layout.tsx            # Shell: skip link, focus management, header + footer
         ├── AppHeader.tsx         # Sticky header: brand block + nav (desktop) / drawer (mobile)
         ├── AppFooter.tsx         # Footer: brand, navigation, contact
         ├── BrandLogo.tsx         # Decorative SVG mark + product name
         ├── LoginCard.tsx         # Sign-in form (posts to /api/login)
+        ├── AccountSettingsForm.tsx # Everyone: edit your own details / password
         ├── AdminSettingsForm.tsx # ADMIN: edits organization name / reset / help text
-        ├── UserTable.tsx         # ADMIN: user list (renders content/users.ts seed data)
+        ├── UserTable.tsx         # ADMIN: user list with edit/archive/restore actions
+        ├── UserFormDialog.tsx    # ADMIN: create/edit one user
         ├── ScanFrequencyForm.tsx # Adds a source with a scan frequency (POST /api/sources)
         ├── ScanFrequencySelect.tsx # Frequency dropdown, options from content/frequencies.ts
         ├── AuditReportsTable.tsx # Read-only report grid; risk chip + tags link to /tag/<slug>
@@ -221,14 +224,24 @@ Routes are guarded in `AppRoutes.tsx`, not just hidden by the nav:
   user to the landing page.
 - Authenticated pages are `React.lazy` loaded, so they are not in the initial bundle.
 
-`ManageUsersPage` renders `content/users.ts`, which is **seed data**, not a live
-list: there is no `GET /users` endpoint yet. It is behind `RequireAdmin`, but
-that guard is client-side only — add a server-side admin check when the
-endpoint is implemented.
+`ManageUsersPage` talks to the real user-management API
+(`api/users.ts`, contract in `docs/api/users.md`): administrators can add users,
+edit any property without changing the `user_id`, archive an account (which sets
+`user_status` to `INACTIVE` and blocks sign-in) and restore it. The
+administrator's own row is edit-only — the archive action and the role/status
+controls are disabled — so an administrator cannot lock themselves out. The
+`RequireAdmin` guard is convenience only; every endpoint re-checks the role
+server-side.
 
-`LoginCard` calls `signIn(username, role)` when the API responds with
-`status: "approved"`. The `role` comes from the login response (`ADMIN` or
-`ANALYST`); any other value is treated as `ANALYST`.
+Every signed-in user gets `AccountSettingsForm` at the top of `/settings`, which
+reads `GET /api/profile` and saves through `PUT /api/profile`. It edits name,
+e-mail, username and password only; a password change requires the current
+password, because the API rejects it otherwise.
+
+`LoginCard` calls `signIn(username, role, userId)` when the API responds with
+`status: "approved"`. The role comes from the login response (`ADMIN` or
+`ANALYST`, anything else is treated as `ANALYST`), and `userId` lets the admin
+screen recognise the signed-in user's own row.
 
 ### Where the session lives
 
