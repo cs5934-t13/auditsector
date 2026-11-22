@@ -5,6 +5,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { Link as RouterLink } from 'react-router-dom';
+import AccountSettingsForm from '../components/AccountSettingsForm';
 import AdminSettingsForm from '../components/AdminSettingsForm';
 import PageSection from '../components/PageSection';
 import Prose from '../components/Prose';
@@ -56,8 +57,8 @@ function AdminSection() {
           Administration
         </Typography>
         <Prose>
-          Manage who can access Audit Sector and maintain the organization-wide
-          text shown throughout the application.
+          Manage who can access Audit Sector, maintain the organization-wide
+          text shown throughout the application, and update your own account.
         </Prose>
 
         <Link
@@ -98,7 +99,7 @@ function AdminSection() {
   );
 }
 
-/** Settings: general help for everyone, plus an admin-only section. */
+/** Settings: general help and your own account for everyone, plus an admin-only section. */
 export default function SettingsPage() {
   const { isAdmin } = useAuth();
 
@@ -115,6 +116,7 @@ export default function SettingsPage() {
         </Typography>
 
         <Stack spacing={3}>
+          <AccountSettingsForm />
           <GeneralSettings />
           {isAdmin && <AdminSection />}
         </Stack>

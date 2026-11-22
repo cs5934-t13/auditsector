@@ -1,6 +1,7 @@
 # ---- Build stage -----------------------------------------------------------
 # Compiles the React + MUI single-page app into static assets.
-FROM node:22-alpine AS build
+# Pinned at or above 24.22.1 (engines floor in app/package.json).
+FROM node:24.22.3-alpine AS build
 WORKDIR /app
 
 # Install dependencies first so this layer is cached when only source changes.

@@ -53,4 +53,5 @@ export const SEED_TAG_NAMES: readonly SeedTag[] = [
   SEED_TAGS.grantOversight,
   SEED_TAGS.informationTechnology,
   SEED_TAGS.regulatoryCompliance,
+  SEED_TAGS.credentialityOfEmployees,
 ];

@@ -51,13 +51,28 @@ Database host and name are currently hard-coded in `get_db_connection()`
 | `GET /api/settings` | `/settings` | none |
 | `PUT /api/settings` | `/settings` | session + `ADMIN` |
 | `POST /api/sources` | `/sources` | session |
-| `GET /api/audits/recent` | `/audits/recent` | session |
-| `GET /api/audits/<audit_id>` | `/audits/<audit_id>` | session |
+| `GET /api/user` | `/user` | session + `ADMIN` |
+| `POST /api/user` | `/user` | session + `ADMIN` |
+| `GET /api/user/<id>` | `/user/<id>` | session (admin, or the user themself) |
+| `PUT /api/user/<id>` | `/user/<id>` | session (admin, or the user themself) |
+| `DELETE /api/user/<id>` | `/user/<id>` | session + `ADMIN` (archives the account) |
+| `POST /api/user/<id>/restore` | `/user/<id>/restore` | session + `ADMIN` |
+| `GET /api/profile` | `/profile` | session (your own record) |
+| `PUT /api/profile` | `/profile` | session (your own record) |
 
-`/login` returns `{"status": "approved", "role": "ADMIN" | "ANALYST"}` on
-success and `{"status": "failed"}` otherwise. Roles come from `user_role` on
+`/login` returns `{"status": "approved", "role": "ADMIN" | "ANALYST", "user_id": 1}`
+on success and `{"status": "failed"}` otherwise. Roles come from `user_role` on
 the `users` table; inactive accounts are rejected with `403` even when the
-password is correct.
+password is correct. The `user_id` lets the client recognise the signed-in
+user's own row in the Manage Users list.
+
+### User management
+
+Administrators add, edit and archive accounts; every signed-in user can edit
+their own profile at `/profile`. Archiving sets `user_status` to `INACTIVE`
+rather than deleting the row, so history such as `schedules.created_by` still
+resolves. `user_id` is never accepted in a payload, so an edit cannot change a
+user's identity. See `docs/api/users.md` for the full contract.
 
 ### `GET /session` is the source of truth
 
@@ -67,7 +82,7 @@ forged `role: "ADMIN"` would render administrator screens. Instead the client
 calls `/session` on load and trusts only the answer:
 
 ```json
-{ "data": { "authenticated": true, "username": "ferguszo", "role": "ADMIN" } }
+{ "data": { "authenticated": true, "username": "ferguszo", "role": "ADMIN", "user_id": 1 } }
 ```
 
 ```json
@@ -84,8 +99,8 @@ Two decorators in `hello.py`:
 
 | Decorator | Rejects with | Used by |
 |---|---|---|
-| `@login_required` | `401` when there is no session | `/sources` |
-| `@admin_required` | `401` without a session, `403` when the *current* role is not `ADMIN` | `PUT /settings` |
+| `@login_required` | `401` when there is no session | `/sources`, `/profile`, `GET/PUT /user/<id>` |
+| `@admin_required` | `401` without a session, `403` when the *current* role is not `ADMIN` | `PUT /settings`, `GET/POST /user`, `DELETE /user/<id>`, `POST /user/<id>/restore` |
 
 `@admin_required` re-reads `user_role` and `user_status` from the database on
 every request rather than trusting the session snapshot taken at login. Using
@@ -105,6 +120,11 @@ caller could create a schedule attributed to any user.
 - Tampering with the session cookie → signature fails, request is anonymous.
 - Logging in as another user requires that user's password; there is no way to
   request a role at login (a `role` field in the login body is ignored).
+- An analyst editing anyone but themselves → `403`; sending `user_role` or
+  `user_status` in their own update → `403`, so self-promotion is impossible.
+- An analyst changing their password without `current_password` → `422`, and
+  with a wrong one → `422 INVALID_CURRENT_PASSWORD`.
+- An administrator demoting or archiving their own account → `422`.
 
 ### Prefix stripping and `X-Forwarded-Prefix`
 

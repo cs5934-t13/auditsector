@@ -22,6 +22,16 @@ from services.scheduler.runner import run_once
 
 TOKEN = os.environ.get("AW98_TEST_RUN")
 
+SEED_TAG_SQL = Path(__file__).resolve().parents[2] / "data/scripts/init_tag_data.sql"
+
+
+def seeded_tag_count():
+    """Count the predefined tags so this stays correct as the seed list grows."""
+    sql = SEED_TAG_SQL.read_text()
+    return sum(
+        1 for line in sql.splitlines() if line.strip().startswith("('")
+    )
+
 
 def owned(conn):
     with conn.cursor() as cur:
@@ -417,7 +427,8 @@ class MigrationTests(unittest.TestCase):
                 cur.execute("SELECT * FROM audit_tags")
                 self.assertEqual(cur.fetchone(), {"audit_id": "7", "tag_id": 5})
                 cur.execute("SELECT COUNT(*) AS n FROM tags")
-                self.assertEqual(cur.fetchone()["n"], 11)
+                # One custom legacy tag plus every predefined seed tag.
+                self.assertEqual(cur.fetchone()["n"], seeded_tag_count() + 1)
             self.assertEqual(migration.apply(conn), 0)
             with conn.cursor() as cur:
                 cur.execute(
@@ -434,7 +445,7 @@ class MigrationTests(unittest.TestCase):
                     "ALTER TABLE audit_headers DROP FOREIGN KEY fk_audit_schedule"
                 )
                 cur.execute(
-                    "INSERT INTO audit_headers(audit_id,schedule_id,title) VALUES ('orphan',0,'Keep orphan until ownership is resolved')"
+                    "INSERT INTO audit_headers(audit_id,schedule_id,title,audit_url) VALUES ('orphan',0,'Keep orphan until ownership is resolved','https://example.invalid/orphan.pdf')"
                 )
             conn.commit()
             with self.assertRaisesRegex(ValueError, "without real schedules"):

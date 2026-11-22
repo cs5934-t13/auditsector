@@ -21,6 +21,7 @@ SCHEDULE = {
 
 AUDIT = {
     "title":        "Demo Audit",
+    "audit_url":    "https://example.invalid/reports/demo.pdf",
     "audit_date":   datetime(2026, 11, 1, 13, 30),
 }
 

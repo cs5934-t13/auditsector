@@ -8,18 +8,26 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import type { UserRole } from '../utils/users.ts';
 
 /**
  * User roles.
  *
- * Mirrors the `user_role` enum on the backend `users` table.
+ * The union itself lives in `utils/users.ts`, next to the wire types and the
+ * role labels, so the auth layer and the user-management screens cannot drift.
  * `ADMIN` users see the administrative settings section.
  */
-export type UserRole = 'ADMIN' | 'ANALYST';
+export type { UserRole };
 
 export interface AuthUser {
   username: string;
   role: UserRole;
+  /**
+   * Database id, when the server reports one. Used to hide destructive actions
+   * on the signed-in user's own row. `null` for sessions restored from an older
+   * server build that does not return it.
+   */
+  userId: number | null;
 }
 
 export type AuthStatus = 'checking' | 'authenticated' | 'anonymous';
@@ -31,7 +39,9 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isAdmin: boolean;
   /** Applies the result of a successful login. */
-  signIn: (username: string, role?: UserRole) => void;
+  signIn: (username: string, role?: UserRole, userId?: number | null) => void;
+  /** Re-reads `/api/session`, e.g. after the user renames their own account. */
+  refresh: () => void;
   /** Clears the server session and the local state. */
   signOut: () => Promise<void>;
 }
@@ -44,11 +54,18 @@ interface SessionResponse {
     authenticated?: boolean;
     username?: unknown;
     role?: unknown;
+    user_id?: unknown;
   };
 }
 
 function normalizeRole(value: unknown): UserRole {
   return value === 'ADMIN' ? 'ADMIN' : 'ANALYST';
+}
+
+function normalizeUserId(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+    ? value
+    : null;
 }
 
 /**
@@ -81,6 +98,7 @@ async function fetchSession(signal: AbortSignal): Promise<AuthUser | null> {
   return {
     username: data.username,
     role: normalizeRole(data.role),
+    userId: normalizeUserId(data.user_id),
   };
 }
 
@@ -133,10 +151,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh();
   }, [refresh]);
 
-  const signIn = useCallback((username: string, role: UserRole = 'ANALYST') => {
-    setUser({ username, role });
-    setStatus('authenticated');
-  }, []);
+  const signIn = useCallback(
+    (username: string, role: UserRole = 'ANALYST', userId: number | null = null) => {
+      setUser({ username, role, userId });
+      setStatus('authenticated');
+    },
+    [],
+  );
 
   const signOut = useCallback(async () => {
     // Clear the server session first, otherwise a refresh would sign the user
@@ -162,9 +183,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: status === 'authenticated',
       isAdmin: status === 'authenticated' && user?.role === 'ADMIN',
       signIn,
+      refresh,
       signOut,
     }),
-    [user, status, signIn, signOut],
+    [user, status, signIn, refresh, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

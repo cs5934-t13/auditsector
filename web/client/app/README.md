@@ -32,7 +32,8 @@ All current consumers belong to the lint tooling, not the application runtime.
 Revisit this override when the upstream lint packages require a patched release.
 
 The URL-validation tests import TypeScript directly and require a Node.js version
-with native TypeScript type stripping enabled, such as Node 22.18+ or Node 24+.
+with native TypeScript type stripping enabled, such as Node 24+. The client image
+builds on `node:24-alpine`.
 
 Vite serves the frontend at `http://localhost:5173` and forwards `/api/*` unchanged
 to NGINX at `http://localhost:8080`. NGINX removes the `/api` prefix and forwards

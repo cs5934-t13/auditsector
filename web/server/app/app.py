@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 import pymysql
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
-from flask import Flask, abort, request, session
+from flask import Flask, request, session
 from services.tags.tags import Tags
 from services.users.users import Users
 from werkzeug.exceptions import HTTPException
@@ -41,7 +41,7 @@ def get_db_connection():
 
 
 def _current_role(username):
-    """Looks up the live role and status for a session user.
+    """Looks up the live role, status and id for a session user.
 
     The role is re-read on demand rather than taken from the session blob, so a
     role change or deactivation in the database takes effect immediately instead
@@ -53,7 +53,7 @@ def _current_role(username):
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT user_role, user_status
+                    SELECT user_id, user_role, user_status
                     FROM users
                     WHERE username = %s;
                 """,
@@ -238,12 +238,14 @@ def login_user():
     session.permanent = True
 
     # The role is returned so the client can render the administrator views
-    # without a second request.
+    # without a second request. The id lets the client recognise the signed-in
+    # user's own row in the Manage Users list.
     return {
         "status": "approved",
         "reason": "user is authorized",
         "username": username,
         "role": row["user_role"],
+        "user_id": row["user_id"],
     }
 
 
@@ -279,6 +281,7 @@ def get_session():
             "authenticated": True,
             "username": username,
             "role": row["user_role"],
+            "user_id": row["user_id"],
         }
     }, 200
 
@@ -578,80 +581,366 @@ def get_recent_audits():
     }, 200
 
 
+def _session_user_id():
+    """The signed-in user's database id, or None when it is missing/invalid.
+
+    Sessions created before `user_id` was stored in the cookie fall back to a
+    lookup by username, so a deploy does not silently break self-service for
+    anyone who is already signed in.
+    """
+    if "user_id" in session:
+        try:
+            return int(session["user_id"])
+        except (TypeError, ValueError):
+            pass
+
+    username = session.get("username")
+    if not username:
+        return None
+
+    row = _current_role(username)
+    if row is None:
+        return None
+
+    session["user_id"] = row["user_id"]
+    return row["user_id"]
+
+
+def _serialize_user(row):
+    """Converts a users row into the JSON shape the client expects.
+
+    Only allow-listed columns are returned (the service never selects
+    `password_hash`). Timestamps are emitted as ISO-8601, matching the style
+    used by the audit endpoints rather than Flask's default date formatting.
+    """
+    return {
+        "user_id": row["user_id"],
+        "first_name": row["first_name"],
+        "last_name": row["last_name"],
+        "email": row["email"],
+        "username": row["username"],
+        "user_role": row["user_role"],
+        "user_status": row["user_status"],
+        "created_at": row["created_at"].isoformat(timespec="seconds"),
+        "updated_at": row["updated_at"].isoformat(timespec="seconds"),
+    }
+
+
+def _optional_string(data, key):
+    """Returns (present, value) for an optional string field.
+
+    A present but non-string value raises ValueError so callers can answer 422
+    instead of letting `len()` blow up further down.
+    """
+    if key not in data:
+        return False, None
+
+    value = data[key]
+    if not isinstance(value, str):
+        raise ValueError(f"'{key}' must be a string.")
+
+    return True, value
+
+
 @app.get("/user")
-@login_required
+@admin_required
 def get_users():
-    return Users().get_users()
+    """Lists users. Administrator only, because it exposes e-mail addresses.
+
+    Archived (`INACTIVE`) accounts are hidden unless the caller asks for them
+    with `?include_inactive=true`, which the Manage Users screen does so it can
+    offer a Restore action.
+    """
+    include_inactive = request.args.get("include_inactive", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+    try:
+        rows = Users().get_users(include_inactive=include_inactive)
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to connect to or read from the database.",
+            500,
+        )
+
+    return {"data": [_serialize_user(row) for row in rows]}, 200
 
 
 @app.post("/user")
 @admin_required
 def add_user():
+    """Creates a user. Administrator only."""
     data = request.get_json(silent=True) or {}
-    first_name = data.get("first_name")
-    last_name = data.get("last_name")
-    email = data.get("email")
-    username = data.get("username")
-    password = data.get("password")
-    role = data.get("user_role")
-    status = data.get("user_status")
 
     try:
-        response = Users().add_user(
+        _, first_name = _optional_string(data, "first_name")
+        _, last_name = _optional_string(data, "last_name")
+        _, email = _optional_string(data, "email")
+        _, username = _optional_string(data, "username")
+        _, password = _optional_string(data, "password")
+
+        # Accept both the short (`role`) and column (`user_role`) names.
+        role = data.get("user_role", data.get("role"))
+        status = data.get("user_status", data.get("status"))
+    except ValueError as err:
+        return error_response("INVALID_USER", str(err), 422)
+
+    try:
+        user_id = Users().add_user(
             first_name, last_name, email, username, password, role, status
         )
     except ValueError:
-        abort(422)
+        return error_response(
+            "INVALID_USER",
+            "first_name, last_name, email, username and password are required; "
+            "user_role must be ADMIN or ANALYST; user_status must be ACTIVE or "
+            "INACTIVE.",
+            422,
+        )
+    except pymysql.err.IntegrityError:
+        return error_response(
+            "USER_ALREADY_EXISTS",
+            "A user with that username or e-mail address already exists.",
+            409,
+        )
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to connect to or update the database.",
+            500,
+        )
 
-    return {"user_id": response}
+    try:
+        row = Users().get_user(user_id, include_inactive=True)
+    except pymysql.MySQLError:
+        row = None
+
+    if row is None:
+        # The insert succeeded but the row could not be read back; report the
+        # id rather than failing the whole request.
+        return {"data": {"user_id": user_id}}, 201
+
+    return {"data": _serialize_user(row)}, 201
 
 
-@app.get("/user/<user_id>")
+@app.get("/user/<int:user_id>")
 @login_required
 def get_user(user_id):
-    response = Users().get_user(user_id)
-    if response:
-        return response, 200
-    else:
-        abort(404)
+    """Returns one user. Available to administrators and to the user themself."""
+    is_self = user_id == _session_user_id()
+
+    if not is_self:
+        row = _current_role(session.get("username"))
+        if row is None or row["user_role"] != "ADMIN":
+            return error_response(
+                "FORBIDDEN",
+                "Administrator access is required.",
+                403,
+            )
+
+    try:
+        user = Users().get_user(user_id, include_inactive=not is_self)
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to connect to or read from the database.",
+            500,
+        )
+
+    if user is None:
+        return error_response("USER_NOT_FOUND", "No such user.", 404)
+
+    return {"data": _serialize_user(user)}, 200
 
 
-@app.put("/user/<user_id>")
-@admin_required
-def update_user(user_id):
-
-    data = request.get_json(silent=True) or {}
-    first_name = data.get("first_name")
-    last_name = data.get("last_name")
-    email = data.get("email")
-    username = data.get("username")
-    password = data.get("password")
-    role = data.get("role")
-    status = data.get("status")
-
-    response = Users().update_user(
-        user_id, first_name, last_name, email, username, password, role, status
+def _wants_admin_fields(data):
+    """True when the payload names a role or status field in either spelling."""
+    return any(
+        key in data for key in ("user_role", "role", "user_status", "status")
     )
 
-    if response:
-        return "User {id} updated.", 200
-    else:
-        abort(500)
+
+def _apply_user_update(user_id, data):
+    """Shared implementation for `PUT /user/<id>` and `PUT /profile`.
+
+    Keeping this in one place means the self-service endpoint cannot drift into
+    a more permissive version of the admin one: both go through the same
+    role/status and current-password checks.
+    """
+    is_self = user_id == _session_user_id()
+    current = _current_role(session.get("username"))
+
+    if current is None or current["user_status"] != "ACTIVE":
+        session.clear()
+        return {"status": "failed", "reason": "authentication required"}, 401
+
+    is_admin = current["user_role"] == "ADMIN"
+
+    if not is_admin and not is_self:
+        return error_response(
+            "FORBIDDEN",
+            "Administrator access is required.",
+            403,
+        )
+
+    if not is_admin and _wants_admin_fields(data):
+        return error_response(
+            "FORBIDDEN",
+            "Only an administrator can change a user's role or status.",
+            403,
+        )
+
+    try:
+        has_password, password = _optional_string(data, "password")
+        _, first_name = _optional_string(data, "first_name")
+        _, last_name = _optional_string(data, "last_name")
+        _, email = _optional_string(data, "email")
+        _, username = _optional_string(data, "username")
+        _, current_password = _optional_string(data, "current_password")
+    except ValueError as err:
+        return error_response("INVALID_USER", str(err), 422)
+
+    role = data.get("user_role", data.get("role"))
+    status = data.get("user_status", data.get("status"))
+
+    if is_self and is_admin:
+        # Stop an administrator from locking themselves out of the admin area.
+        if role is not None and role != "ADMIN":
+            return error_response(
+                "INVALID_USER",
+                "You cannot remove your own administrator role.",
+                422,
+            )
+        if status is not None and status != "ACTIVE":
+            return error_response(
+                "INVALID_USER",
+                "You cannot deactivate your own account.",
+                422,
+            )
+
+    if has_password and password and is_self:
+        # A user changing their own password must prove they know the old one.
+        # An administrator may reset somebody else's password without it.
+        if not current_password:
+            return error_response(
+                "CURRENT_PASSWORD_REQUIRED",
+                "Enter your current password to set a new one.",
+                422,
+            )
+
+        try:
+            verified = Users().verify_password(user_id, current_password)
+        except pymysql.MySQLError:
+            return error_response(
+                "INTERNAL_SERVER_ERROR",
+                "Unable to connect to or read from the database.",
+                500,
+            )
+
+        if not verified:
+            return error_response(
+                "INVALID_CURRENT_PASSWORD",
+                "The current password is incorrect.",
+                422,
+            )
+
+    try:
+        updated = Users().update_user(
+            user_id,
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            username=username,
+            password=password,
+            role=role,
+            status=status,
+        )
+    except ValueError as err:
+        return error_response("INVALID_USER", str(err), 422)
+    except pymysql.err.IntegrityError:
+        return error_response(
+            "USER_ALREADY_EXISTS",
+            "A user with that username or e-mail address already exists.",
+            409,
+        )
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to connect to or update the database.",
+            500,
+        )
+
+    if not updated:
+        return error_response("USER_NOT_FOUND", "No such user.", 404)
+
+    # The session keys the signed-in username. Keep it in step when a user
+    # renames themselves, otherwise the next `_current_role` lookup misses and
+    # the session is treated as signed out.
+    if is_self and username is not None and username != session.get("username"):
+        session["username"] = username
+
+    try:
+        row = Users().get_user(user_id, include_inactive=True)
+    except pymysql.MySQLError:
+        row = None
+
+    if row is None:
+        return {"data": {"user_id": user_id}}, 200
+
+    return {"data": _serialize_user(row)}, 200
 
 
-@app.delete("/user/<user_id>")
+@app.put("/user/<int:user_id>")
+@login_required
+def update_user(user_id):
+    """Updates a user's properties without changing their id.
+
+    - Administrators may change any field, including role and status.
+    - A regular user may change their own name, e-mail, username and password,
+      but cannot grant themselves a role or change their status.
+    - No caller may change `user_id`; it is only used to select the row.
+
+    A self-service password change must include `current_password`, so a stolen
+    session cannot silently take over the account.
+    """
+    return _apply_user_update(user_id, request.get_json(silent=True) or {})
+
+
+@app.delete("/user/<int:user_id>")
 @admin_required
 def deactivate_user(user_id):
+    """Archives a user (sets `user_status` to `INACTIVE`).
 
-    print(int(user_id))
-    print(int(session["user_id"]))
+    The row is kept so historical references stay valid; only sign-in and the
+    active-user listings are affected.
+    """
+    if user_id == _session_user_id():
+        return error_response(
+            "INVALID_USER",
+            "You cannot archive the account you are signed in with.",
+            422,
+        )
 
-    print(int(user_id) == int(session["user_id"]))
+    try:
+        archived = Users().deactivate_user(user_id)
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to connect to or update the database.",
+            500,
+        )
 
-    if int(user_id) == int(session["user_id"]):
-        abort(422, "Cannot delete currently logged in user.")
+    if not archived:
+        return error_response(
+            "USER_NOT_FOUND",
+            "No active user with that id.",
+            404,
+        )
 
-    response = Users().deactivate_user(user_id)
+    return {"data": {"user_id": user_id, "user_status": "INACTIVE"}}, 200
 
     if response:
         return "User {id} deleted.", 200
@@ -737,3 +1026,72 @@ def get_audit_report(audit_id):
             "Unable to retrieve audit report.",
             500,
         )
+
+@app.post("/user/<int:user_id>/restore")
+@admin_required
+def restore_user(user_id):
+    """Restores an archived user to `ACTIVE`."""
+    try:
+        restored = Users().reactivate_user(user_id)
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to connect to or update the database.",
+            500,
+        )
+
+    if not restored:
+        return error_response(
+            "USER_NOT_FOUND",
+            "No archived user with that id.",
+            404,
+        )
+
+    return {"data": {"user_id": user_id, "user_status": "ACTIVE"}}, 200
+
+
+@app.get("/profile")
+@login_required
+def get_profile():
+    """Returns the signed-in user's own record.
+
+    Self-service, so a regular user does not need to know their internal id to
+    load and edit their details.
+    """
+    user_id = _session_user_id()
+
+    if user_id is None:
+        session.clear()
+        return {"status": "failed", "reason": "authentication required"}, 401
+
+    try:
+        row = Users().get_user(user_id, include_inactive=True)
+    except pymysql.MySQLError:
+        return error_response(
+            "INTERNAL_SERVER_ERROR",
+            "Unable to connect to or read from the database.",
+            500,
+        )
+
+    if row is None or row["user_status"] != "ACTIVE":
+        session.clear()
+        return {"status": "failed", "reason": "authentication required"}, 401
+
+    return {"data": _serialize_user(row)}, 200
+
+
+@app.put("/profile")
+@login_required
+def update_profile():
+    """Lets the signed-in user edit their own details.
+
+    Shares `_apply_user_update` with `PUT /user/<id>`, so a regular user cannot
+    reach role/status fields by switching endpoints.
+    """
+    user_id = _session_user_id()
+
+    if user_id is None:
+        session.clear()
+        return {"status": "failed", "reason": "authentication required"}, 401
+
+    return _apply_user_update(user_id, request.get_json(silent=True) or {})
