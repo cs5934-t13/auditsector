@@ -110,8 +110,6 @@ export default function RiskLevelChart({
           // Fill the panel width; without this MUI X falls back to a fixed
           // width and the plot stops changing size with the panel.
           sx={{ width: '100%' }}
-          title="Risk levels over time"
-          desc={summary}
         />
       )}
     </SectionPanel>

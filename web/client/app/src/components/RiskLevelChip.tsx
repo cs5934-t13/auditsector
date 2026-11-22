@@ -38,7 +38,7 @@ export default function RiskLevelChip({
         {
           fontWeight: 600,
           color,
-          backgroundColor: alpha(color, 0.12),
+          backgroundColor: alpha(color, 0.08),
           borderColor: alpha(color, 0.4),
         },
         ...(Array.isArray(sx) ? sx : [sx]),
