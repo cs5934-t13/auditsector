@@ -1,9 +1,9 @@
-FROM python
+FROM python:3.14.10-slim
 
 WORKDIR /app
 
 COPY /app .
-RUN pip install --requirement requirements.txt
+RUN pip install --no-cache-dir --requirement requirements.txt
 
 EXPOSE 5000
 

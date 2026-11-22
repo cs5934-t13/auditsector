@@ -1,4 +1,6 @@
-FROM ghcr.io/astral-sh/uv:debian-slim
+# uv image ships Python 3.14.10 + a current uv. No exact-patch tag is published,
+# so this pins at the minor level.
+FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim
 COPY ./ /services
 WORKDIR /services/fetcher
 RUN uv sync --locked

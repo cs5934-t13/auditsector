@@ -102,6 +102,11 @@ def plan(conn):
             statements.append(
                 "ALTER TABLE audit_headers ADD COLUMN muni VARCHAR(255) NOT NULL DEFAULT ''"
             )
+        if "audit_url" not in audits:
+            # Empty for historical rows; new reports store their PDF link.
+            statements.append(
+                "ALTER TABLE audit_headers ADD COLUMN audit_url TEXT NOT NULL"
+            )
         if "last_run_at" not in schedules:
             statements.append(
                 "ALTER TABLE schedules ADD COLUMN last_run_at DATETIME NULL"
