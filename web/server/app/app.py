@@ -532,34 +532,6 @@ def fetch_recent_audits(page, limit):
     return rows, total_items
 
 
-def _tags_for_audits(cur, audit_ids):
-    """Maps each audit id to its tag names, ordered by name.
-
-    Takes an open cursor so the caller can reuse its connection and transaction.
-    Ids with no tags are absent from the mapping; callers default to `[]`.
-    """
-    if not audit_ids:
-        return {}
-
-    placeholders = ", ".join(["%s"] * len(audit_ids))
-    cur.execute(
-        f"""
-        SELECT at.audit_id, t.name
-        FROM audit_tags AS at
-        JOIN tags AS t ON t.tag_id = at.tag_id
-        WHERE at.audit_id IN ({placeholders})
-        ORDER BY t.name;
-        """,
-        tuple(audit_ids),
-    )
-
-    tags_by_audit = {}
-    for row in cur.fetchall():
-        tags_by_audit.setdefault(row["audit_id"], []).append(row["name"])
-
-    return tags_by_audit
-
-
 def _wants_json() -> bool:
     """True when the request looks like an API call rather than a page load.
 
