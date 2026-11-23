@@ -67,6 +67,12 @@ Each item in `data` contains:
 | `audit_date` | string | `audit_headers.audit_date` | Publication date of the report, read from the PDF. |
 | `created_at` | string | `audit_headers.created_at` | Date and time the audit record was inserted. |
 | `risk_level` | string or `null` | `audit_headers.risk_level` | `INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, or `null` when unclassified. |
+
+`risk_level` reflects the most serious finding the report substantiates, not the
+number of findings or the sensitivity of the subject. A report on a sensitive
+topic that found nothing wrong is `INFO`. When the classifier returns no usable
+level, the value is `null` and every surface shows "Not rated"; it is never
+defaulted to a real level.
 | `tags` | array of strings | `audit_tags` joined to `tags` | Tag names on the report, ordered by name. Empty for an untagged report. |
 
 `risk_level` and `tags` were added so the signed-in homepage can show each

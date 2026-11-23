@@ -54,6 +54,9 @@ class SummarizeTagPipeline:
             # comes from the title chain rather than the filename on disk.
             audit.title = processed["title"]
             audit.summary = processed["summary"]
+            # `None` when the classifier returned no usable level, which the
+            # column allows and the UI renders as "Not rated".
+            audit.risk_level = processed["risk_level"]
             audit.run_status = "COMPLETED"
             # The report's own publication date, not the crawl time. When the
             # PDF states no date, fall back to now so the NOT NULL column is

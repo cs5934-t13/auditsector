@@ -1,18 +1,20 @@
-"""Backfill readable titles and publication dates for existing audit rows.
+"""Backfill titles, publication dates, and risk levels for existing audit rows.
 
 Scrapy names each download after ``sha1(url)``, and older rows stored that hash
 in ``audit_headers.title``. The fetcher also wrote the crawl time into
-``audit_headers.audit_date``, so it carried no publication information.
+``audit_headers.audit_date``, and hardcoded ``INFO`` into
+``audit_headers.risk_level``, so neither column carried real information.
 
-This finds the downloaded PDF for each row and re-derives both values with the
+This finds the downloaded PDF for each row and re-derives those values with the
 same helpers the fetcher uses. Titles are only rewritten when unusable (see
-``--force`` to rewrite all), and dates only when they still equal
-``created_at``, which is the signature of the old behaviour.
+``--force`` to rewrite all), dates only when they still equal ``created_at``,
+and risk levels only when ``--risk`` is given, because that needs one model
+call per row.
 
 Run inside the services container, which has the downloads mounted::
 
     PYTHONPATH=/services/fetcher MYSQL_ROOT_PASSWORD=... \\
-        python /services/fetcher/scripts/backfill_titles.py [--dry-run] [--force]
+        python /services/fetcher/scripts/backfill_titles.py [--dry-run] [--force] [--risk]
 
 The store defaults to ``/services/fetcher/files``; override with ``FILES_STORE``.
 """
@@ -25,6 +27,7 @@ import sys
 
 import pymupdf
 
+from fetcher.ai.classify import RISK_LEVELS, classify_report
 from fetcher.ai.publish_date import derive_publish_date
 from fetcher.ai.title import _is_usable, derive_title
 from fetcher.storage import connect_db
@@ -53,16 +56,20 @@ def candidate_paths(store, spider_id, audit_url):
 def resolve(row, store):
     """The readable title and publication date for one row.
 
-    Returns `(title, publish_date)`, with either element `None` when the PDF is
-    missing or does not state a date.
+    Returns `(title, publish_date, text)`, with the first two `None` when the
+    PDF is missing. `text` is the report body, used only for classification.
     """
     path = candidate_paths(store, row["muni"] or "", row["audit_url"])
     if path is None:
-        return None, None
+        return None, None, None
 
     with pymupdf.open(path) as doc:
         metadata = doc.metadata or {}
         first_page_text = doc[0].get_text() if len(doc) else ""
+        if metadata.get("title") or first_page_text:
+            body = "\n\n".join(page.get_text() for page in doc)
+        else:
+            body = ""
 
     title = derive_title(
         metadata_title=metadata.get("title"),
@@ -74,7 +81,7 @@ def resolve(row, store):
         first_page_text=first_page_text,
         metadata_creation_date=metadata.get("creationDate"),
     )
-    return title, publish_date
+    return title, publish_date, body
 
 
 def _date_is_crawl_time(row):
@@ -90,7 +97,7 @@ def _date_is_crawl_time(row):
     return audit_date == created_at
 
 
-def _plan_updates(row, store, force):
+def _plan_updates(row, store, force, risk=False):
     """The column updates for one row, or `(None, error)` when its PDF is gone.
 
     Returns `({}, None)` when the row is already correct, and `(None, message)`
@@ -99,11 +106,12 @@ def _plan_updates(row, store, force):
     title = row["title"] or ""
     needs_title = force or not _is_usable(title)
     needs_date = force or _date_is_crawl_time(row)
+    needs_risk = risk
 
-    if not needs_title and not needs_date:
+    if not needs_title and not needs_date and not needs_risk:
         return {}, None
 
-    new_title, new_date = resolve(row, store)
+    new_title, new_date, body = resolve(row, store)
     if new_title is None:
         return None, f"no file for {row['audit_id']}: {row['audit_url']}"
 
@@ -114,25 +122,34 @@ def _plan_updates(row, store, force):
     if needs_date and new_date is not None and new_date != row["audit_date"].date():
         updates["audit_date"] = new_date
         print(f"  date  {row['audit_date'].date()} -> {new_date} ({new_title[:50]!r})")
+    if needs_risk:
+        # `None` is a valid column value, but only write it when the model gave
+        # no usable level, so a re-run does not erase a good classification.
+        level = classify_report(body)["risk_level"]
+        if level in RISK_LEVELS and level != row.get("risk_level"):
+            updates["risk_level"] = level
+            print(f"  risk  {row.get('risk_level')} -> {level} ({new_title[:50]!r})")
     return updates, None
 
 
-def backfill(dry_run=False, store=DEFAULT_STORE, force=False):
-    """Repairs titles and publication dates, and reports how many changed.
+def backfill(dry_run=False, store=DEFAULT_STORE, force=False, risk=False):
+    """Repairs titles, publication dates, and optionally risk levels.
 
     Titles are re-derived when unusable, or for every row with `force`.
     Publication dates are re-derived when they still equal `created_at`, so an
-    already-correct date is never overwritten by a worse guess.
+    already-correct date is never overwritten by a worse guess. Risk levels are
+    re-derived only with `risk`, since each row costs one model call.
     """
     store = pathlib.Path(store)
-    changed = {"title": 0, "audit_date": 0}
+    changed = {"title": 0, "audit_date": 0, "risk_level": 0}
     skipped = missing = 0
 
     with connect_db() as conn, conn.cursor() as cur:
         # `muni` holds the spider id for rows written by this fetcher.
         cur.execute(
             """
-            SELECT audit_id, title, audit_date, created_at, audit_url, muni
+            SELECT audit_id, title, audit_date, created_at, audit_url, muni,
+                   risk_level
             FROM audit_headers
             WHERE audit_url IS NOT NULL AND audit_url <> ''
             """
@@ -140,7 +157,7 @@ def backfill(dry_run=False, store=DEFAULT_STORE, force=False):
         rows = cur.fetchall()
 
         for row in rows:
-            updates, error = _plan_updates(row, store, force)
+            updates, error = _plan_updates(row, store, force, risk)
             if error:
                 missing += 1
                 print(f"  {error}")
@@ -164,8 +181,9 @@ def backfill(dry_run=False, store=DEFAULT_STORE, force=False):
 
     print(
         f"rows={len(rows)} titles_updated={changed['title']} "
-        f"dates_updated={changed['audit_date']} unchanged={skipped} "
-        f"no_file={missing} dry_run={dry_run} force={force}"
+        f"dates_updated={changed['audit_date']} "
+        f"risk_updated={changed['risk_level']} unchanged={skipped} "
+        f"no_file={missing} dry_run={dry_run} force={force} risk={risk}"
     )
     return 0 if missing == 0 else 1
 
@@ -186,10 +204,17 @@ def main(argv=None):
     parser.add_argument(
         "--force",
         action="store_true",
-        help="re-derive every title, not only the unusable ones",
+        help="re-derive every title and date, not only the unusable ones",
+    )
+    parser.add_argument(
+        "--risk",
+        action="store_true",
+        help="re-classify risk levels too (one model call per row)",
     )
     args = parser.parse_args(argv)
-    return backfill(dry_run=args.dry_run, store=args.store, force=args.force)
+    return backfill(
+        dry_run=args.dry_run, store=args.store, force=args.force, risk=args.risk
+    )
 
 
 if __name__ == "__main__":

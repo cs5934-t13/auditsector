@@ -62,7 +62,7 @@ cookie established by a successful login. An unauthenticated request returns
 | `municipality` | string | `audit_headers.muni` | Reporting municipality; the wire name differs from the column name. |
 | `audit_url` | string | `audit_headers.audit_url` | Link to the original audit document. |
 | `audit_date` | string | `audit_headers.audit_date` | Publication date of the report, read from the PDF. |
-| `risk_level` | string or `null` | `audit_headers.risk_level` | One of `INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, or `null` when the report has not been classified. |
+| `risk_level` | string or `null` | `audit_headers.risk_level` | One of `INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, or `null` when the report has not been classified. Assigned by the fetcher's classifier from the report's own findings. |
 | `run_status` | string or `null` | `audit_headers.run_status` | One of `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`. |
 | `summary` | string or `null` | `audit_headers.summary` | AI-generated summary; `null` until the scan produces one. |
 | `created_at` | string | `audit_headers.created_at` | Record insertion time. |

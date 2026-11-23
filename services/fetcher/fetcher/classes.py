@@ -19,7 +19,10 @@ class Audit:
         self.muni = muni
         self.audit_url = audit_url
         self.audit_date = audit_date
-        self.risk_level = "INFO"
+        # `None` means "not classified" and is a valid column value. The
+        # classifier assigns the real level; hardcoding a default made every
+        # report look informational.
+        self.risk_level = risk_level
         self.run_status = "PENDING"
         self.summary = summary
         self.tags = []

@@ -1,9 +1,9 @@
-"""Run a downloaded audit PDF through extraction, summarization, and tagging."""
+"""Run a downloaded audit PDF through extraction, classification, and tagging."""
 
 from pathlib import Path
 
+from .classify import classify_report
 from .extract import extract_pdf
-from .summarize import generate_summary
 from .tag import generate_tags
 
 
@@ -12,10 +12,10 @@ def process_audit(pdf_path, audit_url=None, fallback_date=None):
     Process an audit PDF through the AI pipeline.
 
     Returns extracted metadata, the report's publication date, an AI-generated
-    summary, and predefined classification tags. `audit_url` is the report's
-    source URL; when given, it supplies the filename used as the last-resort
-    title. `fallback_date` is stored as the publication date when the PDF does
-    not state one.
+    summary and risk level, and predefined classification tags. `audit_url` is
+    the report's source URL; when given, it supplies the filename used as the
+    last-resort title. `fallback_date` is stored as the publication date when
+    the PDF does not state one.
     """
 
     pdf_path = Path(pdf_path)
@@ -41,8 +41,9 @@ def process_audit(pdf_path, audit_url=None, fallback_date=None):
             "No extractable text found in audit PDF"
         )
 
-    # Step 3: Generate AI summary
-    summary = generate_summary(audit_text)
+    # Step 3: Summary and risk level come from one request, so adding severity
+    # costs no extra model call.
+    classification = classify_report(audit_text)
 
     # Step 4: Generate AI classification tags
     tagging_result = generate_tags(audit_text)
@@ -52,6 +53,7 @@ def process_audit(pdf_path, audit_url=None, fallback_date=None):
         "title": extraction["title"],
         "publish_date": extraction["publish_date"],
         "page_count": extraction["page_count"],
-        "summary": summary,
+        "summary": classification["summary"],
+        "risk_level": classification["risk_level"],
         "tags": tagging_result["tags"]
     }

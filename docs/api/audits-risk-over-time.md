@@ -18,6 +18,18 @@ by showing how severe the scanned reports are, not just how many there are.
 Risk levels match `audit_headers.risk_level`:
 `ENUM('INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL') NULL`.
 
+Each level is assigned by the fetcher's classifier, from the most serious finding
+the report substantiates:
+
+| Level | Meaning |
+|---|---|
+| `INFO` | Informational; no actionable findings. |
+| `LOW` | Minor or administrative weaknesses with limited impact. |
+| `MEDIUM` | Control weaknesses or performance gaps needing a planned response. |
+| `HIGH` | Significant, material, or recurring weaknesses needing prompt action. |
+| `CRITICAL` | Severe or systemic failure, such as fraud, safety risk, or major loss. |
+| `NULL` | Not classified; charted as `UNRATED`. |
+
 ## Request
 
 **Method:** `GET`
