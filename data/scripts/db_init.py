@@ -170,3 +170,4 @@ def resolve_sql_dir():
 
 if __name__ == "__main__":
     init_db(resolve_sql_dir())
+    print("Database initialization complete")
