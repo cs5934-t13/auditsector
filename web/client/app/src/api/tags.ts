@@ -48,11 +48,22 @@ export interface ResolvedTag extends TagRule {
   name: string;
 }
 
+/** Columns `GET /tags/<tag>/audits` can order by. */
+export type TagAuditSort = 'title' | 'audit_date' | 'created_at' | 'risk_level';
+export type SortOrder = 'asc' | 'desc';
+
+export interface TagAuditsSort {
+  sort: TagAuditSort;
+  order: SortOrder;
+}
+
 export interface TagAuditsResponse {
   data: RecentAuditRecord[];
   /** Canonical tag row, so the page can show the server's display casing. */
   tag: ResolvedTag;
   pagination: Pagination;
+  /** The ordering the server actually applied, which may differ from the request. */
+  sort: TagAuditsSort;
 }
 
 export class TagsApiError extends Error {
@@ -262,7 +273,12 @@ export async function fetchTags(
  */
 export async function fetchTagAudits(
   tag: string,
-  { page = 1, limit = 20 }: { page?: number; limit?: number } = {},
+  {
+    page = 1,
+    limit = 20,
+    sort,
+    order,
+  }: { page?: number; limit?: number; sort?: TagAuditSort; order?: SortOrder } = {},
   options: RequestOptions = {},
 ): Promise<TagAuditsResponse> {
   const segment = tag.trim();
@@ -277,6 +293,9 @@ export async function fetchTagAudits(
   }
 
   const query = new URLSearchParams({ page: String(page), limit: String(limit) });
+  // Omitted rather than defaulted, so the server's default stays authoritative.
+  if (sort) query.set('sort', sort);
+  if (order) query.set('order', order);
   const path = `/api/tags/${encodeURIComponent(segment)}/audits?${query}`;
   const { status, body } = await requestJson(
     path,
@@ -300,5 +319,8 @@ export async function fetchTagAudits(
       boundary: body.tag.boundary ?? null,
     },
     pagination: body.pagination,
+    // Read from the response, not echoed from the request: the server may have
+    // rejected an unknown column and applied its default.
+    sort: body.sort ?? { sort: 'audit_date', order: 'desc' },
   };
 }

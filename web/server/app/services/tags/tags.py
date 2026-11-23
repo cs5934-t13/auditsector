@@ -147,19 +147,61 @@ def resolve(segment):
     return match
 
 
-def audit_page(segment, limit, offset):
+#: Sortable columns and the SQL that orders them. The expression is a literal
+#: from this table, never request text, so `sort`/`order` cannot be injected.
+#: Risk sorts by enum position, not alphabetically, so HIGH is above LOW.
+_SORT_ORDERS = {
+    "title": "a.title",
+    "audit_date": "a.audit_date",
+    "created_at": "a.created_at",
+    "risk_level": "FIELD(a.risk_level, 'INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL')",
+}
+
+#: Default ordering, kept in one place so the endpoint and its docs agree.
+DEFAULT_SORT = ("audit_date", "desc")
+
+
+def order_clause(sort=None, order=None):
+    """The `ORDER BY` body for a requested sort, as `(sql, sort, order)`.
+
+    Falls back to the default for an unknown column or direction rather than
+    raising, because the alternative is a 400 for a merely mistyped parameter on
+    an otherwise valid request. An unknown *column* discards the direction too:
+    honouring "ascending" for a column the caller did not name would echo an
+    ordering nobody asked for. `audit_id` is always appended as a tiebreaker so
+    equal values do not shuffle between pages.
+
+    Returns the values actually used, so the response can echo them.
+    """
+    if sort not in _SORT_ORDERS:
+        column, direction = DEFAULT_SORT
+    else:
+        column = sort
+        direction = (order or "").lower()
+        if direction not in ("asc", "desc"):
+            direction = DEFAULT_SORT[1]
+
+    sql = f"{_SORT_ORDERS[column]} {direction.upper()}, a.audit_id {direction.upper()}"
+    return sql, column, direction
+
+
+def audit_page(segment, limit, offset, sort=None, order=None):
     """One page of reports for a tag URL segment.
 
     Resolving the tag, counting, paging, and collecting the per-row tag names
     all happen on a single connection so a request sees one consistent snapshot
     (and does not open three connections for one page).
 
-    Returns `(None, None, None, None)` when no tag matches, otherwise
-    `(tag_row, rows, total_items, tags_by_audit)`.
+    `sort`/`order` are applied through `order_clause`, which whitelists both and
+    falls back to the default rather than rejecting a mistyped value.
+
+    Returns `(None, None, None, None, None)` when no tag matches, otherwise
+    `(tag_row, rows, total_items, tags_by_audit, applied)` where `applied` is
+    `{"sort": ..., "order": ...}` for the ordering actually used.
     """
     wanted = slugify(unquote(segment))
     if not wanted:
-        return None, None, None, None
+        return None, None, None, None, None
 
     conn = db.get_db_connection()
     with conn:
@@ -175,7 +217,7 @@ def audit_page(segment, limit, offset):
                 None,
             )
             if resolved is None:
-                return None, None, None, None
+                return None, None, None, None, None
 
             # `boundary` may be missing on a pre-migration database.
             if "boundary" in columns:
@@ -197,16 +239,21 @@ def audit_page(segment, limit, offset):
             )
             total_items = cur.fetchone()["total_items"]
 
+            # Resolved outside the page branch: an offset past the end returns no
+            # rows, but the response still has to report which ordering it would
+            # have used.
+            clause, applied_sort, applied_order = order_clause(sort, order)
+
             rows = []
             if offset < total_items:
                 cur.execute(
-                    """
+                    f"""
                     SELECT a.audit_id, a.title, a.audit_date, a.created_at,
                            a.risk_level
                     FROM audit_tags AS at
                     JOIN audit_headers AS a ON a.audit_id = at.audit_id
                     WHERE at.tag_id = %s
-                    ORDER BY a.audit_date DESC, a.audit_id DESC
+                    ORDER BY {clause}
                     LIMIT %s OFFSET %s;
                     """,
                     (resolved["tag_id"], limit, offset),
@@ -217,7 +264,13 @@ def audit_page(segment, limit, offset):
                 cur, [row["audit_id"] for row in rows]
             )
 
-    return resolved, rows, total_items, tags_by_audit
+    return (
+        resolved,
+        rows,
+        total_items,
+        tags_by_audit,
+        {"sort": applied_sort, "order": applied_order},
+    )
 
 
 def audits_for_tag(tag_id, limit, offset):

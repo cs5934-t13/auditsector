@@ -37,6 +37,7 @@ const tagBody = (rows = [audit], page = 1, limit = 20, total = rows.length) => (
     boundary: tag.boundary,
   },
   pagination: { page, limit, total_items: total, total_pages: Math.ceil(total / limit) },
+  sort: { sort: 'audit_date', order: 'desc' },
 });
 
 // --- GET /api/tags ---------------------------------------------------------
@@ -125,6 +126,38 @@ test('fetchTagAudits encodes spaces so a display name still routes', async () =>
       return json(page2);
     },
   });
+});
+
+test('fetchTagAudits sends the requested sort', async () => {
+  await fetchTagAudits('inventory', { sort: 'title', order: 'asc' }, {
+    fetcher: async (path) => {
+      assert.equal(
+        path,
+        '/api/tags/inventory/audits?page=1&limit=20&sort=title&order=asc',
+      );
+      return json(tagBody());
+    },
+  });
+});
+
+test('fetchTagAudits omits sort when the caller does not set one', async () => {
+  await fetchTagAudits('inventory', {}, {
+    fetcher: async (path) => {
+      // The server's default stays authoritative.
+      assert.equal(path, '/api/tags/inventory/audits?page=1&limit=20');
+      return json(tagBody());
+    },
+  });
+});
+
+test('fetchTagAudits reports the ordering the server applied', async () => {
+  const body = { ...tagBody(), sort: { sort: 'risk_level', order: 'asc' } };
+  const result = await fetchTagAudits('inventory', { sort: 'nonsense', order: 'asc' }, {
+    fetcher: async () => json(body),
+  });
+  // Mirrors the response rather than echoing the request, so the header arrows
+  // match what was actually returned.
+  assert.deepEqual(result.sort, { sort: 'risk_level', order: 'asc' });
 });
 
 test('an unused tag returns an empty page, not an error', async () => {

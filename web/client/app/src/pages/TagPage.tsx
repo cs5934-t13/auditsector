@@ -8,17 +8,51 @@ import Container from '@mui/material/Container';
 import Skeleton from '@mui/material/Skeleton';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import type { GridPaginationModel } from '@mui/x-data-grid';
+import type { GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RecentReportsTable from '../components/RecentReportsTable';
 import PageSection from '../components/PageSection';
 import Prose from '../components/Prose';
 import SectionPanel from '../components/SectionPanel';
 import TagRuleText from '../components/TagRuleText';
-import { fetchTagAudits, fetchTags, TagsApiError, type TagSummary } from '../api/tags';
+import {
+  fetchTagAudits,
+  fetchTags,
+  TagsApiError,
+  type SortOrder,
+  type TagAuditSort,
+  type TagSummary,
+} from '../api/tags';
 import type { RecentAuditRecord } from '../content/recentReports';
 import { ROUTES, tagPath } from '../routes';
 import { BODY_LINK_SX } from '../theme';
+
+/** Columns the tag-audits endpoint can order by. Mirrors `TagAuditSort`. */
+const SORTABLE: readonly TagAuditSort[] = [
+  'title',
+  'risk_level',
+  'audit_date',
+  'created_at',
+];
+
+const DEFAULT_SORT: GridSortModel = [{ field: 'audit_date', sort: 'desc' }];
+
+/**
+ * Translates the grid's sort model into query parameters.
+ *
+ * The grid allows one sort at a time here, matching the endpoint, and an
+ * unknown field or absent sort falls back to the default ordering.
+ */
+function sortParams(model: GridSortModel): { sort: TagAuditSort; order: SortOrder } {
+  const [first] = model;
+  if (!first || !SORTABLE.includes(first.field as TagAuditSort)) {
+    return { sort: 'audit_date', order: 'desc' };
+  }
+  return {
+    sort: first.field as TagAuditSort,
+    order: first.sort === 'asc' ? 'asc' : 'desc',
+  };
+}
 
 type LoadResult =
   | {
@@ -49,9 +83,13 @@ export default function TagPage() {
   });
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<LoadResult | null>(null);
+  // The grid's sort model is controlled, so the header arrows always reflect
+  // what the server actually applied.
+  const [sortModel, setSortModel] = useState<GridSortModel>(DEFAULT_SORT);
 
   const { page, pageSize } = paginationModel;
-  const requestKey = `${tagname}:${page}:${pageSize}:${attempt}`;
+  const { sort, order } = sortParams(sortModel);
+  const requestKey = `${tagname}:${page}:${pageSize}:${sort}:${order}:${attempt}`;
   const current = result?.key === requestKey ? result : null;
   const loading = current === null;
 
@@ -59,7 +97,11 @@ export default function TagPage() {
     const controller = new AbortController();
     let ignore = false;
 
-    fetchTagAudits(tagname, { page: page + 1, limit: pageSize }, { signal: controller.signal })
+    fetchTagAudits(
+      tagname,
+      { page: page + 1, limit: pageSize, sort, order },
+      { signal: controller.signal },
+    )
       .then((response) => {
         if (ignore) return;
         setResult({
@@ -92,7 +134,7 @@ export default function TagPage() {
       ignore = true;
       controller.abort();
     };
-  }, [tagname, page, pageSize, requestKey]);
+  }, [tagname, page, pageSize, sort, order, requestKey]);
 
   const retry = useCallback(() => {
     setResult(null);
@@ -103,6 +145,17 @@ export default function TagPage() {
     const nextPage = next.pageSize === pageSize ? next.page : 0;
     if (page === nextPage && pageSize === next.pageSize) return;
     setPaginationModel({ page: nextPage, pageSize: next.pageSize });
+  }
+
+  /**
+   * Applies a new sort and returns to the first page.
+   *
+   * Staying on page 3 after re-sorting would show the third page of a different
+   * ordering, which reads as data having moved.
+   */
+  function changeSort(next: GridSortModel) {
+    setSortModel(next.length > 0 ? next : DEFAULT_SORT);
+    setPaginationModel({ page: 0, pageSize });
   }
 
   // A tag that does not exist is a page-level state, not a table error.
@@ -196,6 +249,8 @@ export default function TagPage() {
               loading={false}
               paginationModel={paginationModel}
               onPaginationModelChange={changePage}
+              sortModel={sortModel}
+              onSortModelChange={changeSort}
             />
           )}
         </Box>
