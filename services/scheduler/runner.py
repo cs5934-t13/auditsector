@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 LOCK_NAME = "auditsector.scheduler"
 
 
-def run_once(connection, now, trigger_scan):
+def run_once(connection, now, trigger_scan, is_unsupported=None):
     with connection.cursor() as cur:
         cur.execute("SELECT GET_LOCK(%s, 0) AS acquired", (LOCK_NAME,))
         if cur.fetchone()["acquired"] != 1:
@@ -29,13 +29,14 @@ def run_once(connection, now, trigger_scan):
                 connection, sid, started, status, next_run
             ),
             clock=lambda: datetime.now(UTC),
+            is_unsupported=is_unsupported,
         )
     finally:
         with connection.cursor() as cur:
             cur.execute("SELECT RELEASE_LOCK(%s)", (LOCK_NAME,))
 
 
-def run_forever(trigger_scan, poll_seconds=60):
+def run_forever(trigger_scan, poll_seconds=60, is_unsupported=None):
     if poll_seconds <= 0:
         raise ValueError("poll_seconds must be greater than zero")
     try:
@@ -48,7 +49,12 @@ def run_forever(trigger_scan, poll_seconds=60):
                 try:
                     connection = connect_db()
                     try:
-                        run_once(connection, datetime.now(UTC), trigger_scan)
+                        run_once(
+                            connection,
+                            datetime.now(UTC),
+                            trigger_scan,
+                            is_unsupported=is_unsupported,
+                        )
                         run_completed = True
                         logger.info("Run successful.")
                     finally:

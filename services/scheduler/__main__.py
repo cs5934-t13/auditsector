@@ -4,9 +4,18 @@ import argparse
 import logging
 import os
 from datetime import datetime, timezone
-from services.scheduler.fetcher import scan
+from services.scheduler.fetcher import UnsupportedSource, scan
 from services.scheduler.repository import connect_db
 from services.scheduler.runner import run_forever, run_once
+
+
+def _is_unsupported(error):
+    """True when a failure means no spider can ever handle the source.
+
+    Passed down rather than imported by `scheduler.py`, which stays free of the
+    Scrapy dependency.
+    """
+    return isinstance(error, UnsupportedSource)
 
 
 def main():
@@ -27,13 +36,18 @@ def main():
     if args.once:
         connection = connect_db()
         try:
-            failures = run_once(connection, datetime.now(timezone.utc), scan)
+            failures = run_once(
+                connection,
+                datetime.now(timezone.utc),
+                scan,
+                is_unsupported=_is_unsupported,
+            )
             if failures:
                 raise SystemExit(1)
         finally:
             connection.close()
     else:
-        run_forever(scan, args.poll_seconds)
+        run_forever(scan, args.poll_seconds, is_unsupported=_is_unsupported)
 
 
 if __name__ == "__main__":

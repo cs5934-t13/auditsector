@@ -8,10 +8,23 @@ from urllib.parse import urlsplit
 FETCHER_ROOT = Path(__file__).resolve().parents[1] / "fetcher"
 
 
+class UnsupportedSource(ValueError):
+    """The source URL cannot be handled by any spider.
+
+    This is a permanent condition: the URL will never become supported by being
+    retried, so the scheduler disables the schedule instead of rescheduling it.
+    It subclasses `ValueError` so existing callers that catch that still work.
+    """
+
+
 def spider_for_url(source_url):
-    url = urlsplit(source_url)
+    try:
+        url = urlsplit(source_url)
+    except (TypeError, ValueError):
+        raise UnsupportedSource("Source URL could not be parsed") from None
+
     if url.scheme not in ("http", "https") or url.username or url.password:
-        raise ValueError("Unsupported collection URL")
+        raise UnsupportedSource("Unsupported collection URL")
     host = (url.hostname or "").lower()
     if (
         host in ("www.seattle.gov", "seattle.gov")
@@ -22,7 +35,7 @@ def spider_for_url(source_url):
         url.path == "/record" or url.path.startswith("/record/")
     ):
         return "portland_or"
-    raise ValueError("No spider supports this collection URL yet")
+    raise UnsupportedSource("No spider supports this collection URL yet")
 
 
 def scan(schedule):

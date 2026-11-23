@@ -96,6 +96,14 @@ LATE_COLUMNS = [
     # columns are backfilled with '' when added as NOT NULL.
     ("audit_headers", "muni", "VARCHAR(255) NOT NULL DEFAULT ''"),
     ("audit_headers", "audit_url", "TEXT NOT NULL"),
+    # Lets the worker park a schedule whose source no spider supports instead of
+    # retrying it every five minutes. Existing rows are active by default, which
+    # matches how they behaved before the column existed.
+    (
+        "schedules",
+        "scan_status",
+        "ENUM('ACTIVE', 'UNSUPPORTED', 'DISABLED') NOT NULL DEFAULT 'ACTIVE'",
+    ),
 ]
 
 

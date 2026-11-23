@@ -18,6 +18,18 @@ by showing how severe the scanned reports are, not just how many there are.
 Risk levels match `audit_headers.risk_level`:
 `ENUM('INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL') NULL`.
 
+Each level is assigned by the fetcher's classifier, from the most serious finding
+the report substantiates:
+
+| Level | Meaning |
+|---|---|
+| `INFO` | Informational; no actionable findings. |
+| `LOW` | Minor or administrative weaknesses with limited impact. |
+| `MEDIUM` | Control weaknesses or performance gaps needing a planned response. |
+| `HIGH` | Significant, material, or recurring weaknesses needing prompt action. |
+| `CRITICAL` | Severe or systemic failure, such as fraud, safety risk, or major loss. |
+| `NULL` | Not classified; charted as `UNRATED`. |
+
 ## Request
 
 **Method:** `GET`
@@ -41,6 +53,12 @@ Both dates must be valid calendar dates and `start_date` must be on or before
 
 The range filters report publication dates (`audit_headers.audit_date`), not
 scan dates, so the series lines up with the reports' own timelines.
+
+`audit_date` is derived from the PDF (page-1 masthead, then creation metadata),
+so the default 12-month window contains only reports actually published in that
+period. Reports scanned recently but published earlier fall outside it; widen
+`start_date` to include them, or use `GET /audits/scan-activity`, which buckets
+on `created_at` instead.
 
 ### Example Request
 

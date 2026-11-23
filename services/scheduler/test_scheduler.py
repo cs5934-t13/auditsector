@@ -3,7 +3,115 @@
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from services.scheduler.scheduler import Schedule, trigger_due_scans
+from services.scheduler.scheduler import (
+    STATUS_ACTIVE,
+    STATUS_UNSUPPORTED,
+    Schedule,
+    get_due_schedules,
+    trigger_due_scans,
+)
+
+
+class UnsupportedSourceTests(unittest.TestCase):
+    """An unsupported URL must be parked, not retried every five minutes."""
+
+    def setUp(self):
+        self.now = datetime(2026, 10, 25, 12, 0, tzinfo=timezone.utc)
+        self.started = self.now - timedelta(minutes=5)
+        self.saved = []
+
+    def _schedule(self, schedule_id=1, status=STATUS_ACTIVE):
+        return Schedule(
+            schedule_id,
+            "https://example.gov/reports",
+            "WEEKLY",
+            self.started,
+            scan_status=status,
+        )
+
+    def _trigger(self, error):
+        def fake_scan(_schedule):
+            raise error
+
+        return fake_scan
+
+    def _save(self, schedule_id, started_at, status, next_run_at):
+        self.saved.append((schedule_id, status, next_run_at))
+
+    def test_unsupported_source_is_parked_not_retried(self):
+        schedule = self._schedule()
+
+        failures = trigger_due_scans(
+            [schedule],
+            self.now,
+            self._trigger(ValueError("No spider supports this collection URL yet")),
+            save_result=self._save,
+            clock=lambda: self.now,
+            is_unsupported=lambda error: "No spider supports" in str(error),
+        )
+
+        self.assertEqual(failures, 1)
+        self.assertEqual(schedule.scan_status, STATUS_UNSUPPORTED)
+        self.assertEqual(self.saved[0][1], STATUS_UNSUPPORTED)
+
+        # The decisive assertion: the same schedule is not due on the next pass,
+        # unlike a transient failure which is retried in five minutes.
+        self.assertEqual(get_due_schedules([schedule], self.now), [])
+
+    def test_transient_failure_still_retries(self):
+        schedule = self._schedule()
+
+        trigger_due_scans(
+            [schedule],
+            self.now,
+            self._trigger(RuntimeError("crawl crashed")),
+            save_result=self._save,
+            clock=lambda: self.now,
+            is_unsupported=lambda error: False,
+        )
+
+        self.assertEqual(schedule.scan_status, STATUS_ACTIVE)
+        self.assertEqual(self.saved[0][1], "ERROR")
+        self.assertEqual(self.saved[0][2], self.now + timedelta(minutes=5))
+        # Still active, so it comes back once the retry time arrives. That is
+        # the intended difference from a parked schedule, which never returns.
+        self.assertEqual(get_due_schedules([schedule], self.now), [])
+        self.assertEqual(
+            len(get_due_schedules([schedule], self.now + timedelta(minutes=5))),
+            1,
+        )
+
+    def test_parked_schedule_is_not_due_even_with_a_past_next_run(self):
+        schedule = Schedule(
+            1,
+            "https://example.gov/reports",
+            "DAILY",
+            self.now - timedelta(days=30),
+            scan_status=STATUS_UNSUPPORTED,
+        )
+        self.assertEqual(get_due_schedules([schedule], self.now), [])
+
+    def test_parking_does_not_touch_other_schedules(self):
+        unsupported = self._schedule(1)
+        healthy = self._schedule(2)
+
+        def fake_scan(schedule):
+            if schedule.schedule_id == 1:
+                raise ValueError("No spider supports this collection URL yet")
+
+        with self.assertLogs("services.scheduler.scheduler", level="ERROR"):
+            trigger_due_scans(
+                [unsupported, healthy],
+                self.now,
+                fake_scan,
+                save_result=self._save,
+                clock=lambda: self.now,
+                is_unsupported=lambda error: "No spider supports" in str(error),
+            )
+
+        self.assertEqual(unsupported.scan_status, STATUS_UNSUPPORTED)
+        self.assertEqual(healthy.scan_status, STATUS_ACTIVE)
+        self.assertGreater(healthy.next_run_at, self.now)
 
 
 class SchedulerTests(unittest.TestCase):
