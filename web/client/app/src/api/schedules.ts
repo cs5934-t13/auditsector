@@ -9,15 +9,46 @@
 export type ScanStatus = 'ACTIVE' | 'UNSUPPORTED' | 'DISABLED'
 export type RunStatus = 'SUCCESS' | 'ERROR' | null
 
+/** Stable failure codes. The server also sends a sentence, so this is optional. */
+export type FailureCode =
+  | 'UNSUPPORTED_SOURCE'
+  | 'SOURCE_UNREADABLE'
+  | 'SCAN_TIMEOUT'
+  | 'SCAN_FAILED'
+  | null
+
 export interface Schedule {
   schedule_id: number
   source_link: string
   scan_frequency: string
   scan_status: ScanStatus
-  /** Whether a spider exists for this source, per the server's allow-list. */
-  is_supported: boolean
   last_run_at: string | null
   last_run_status: RunStatus
+  /**
+   * A short sentence explaining the last failure, or `null` after a success.
+   *
+   * Written for end users: it says what happens next, not which subprocess
+   * failed. The server composes it from `last_error_code`.
+   */
+  last_error: string | null
+  /** Machine-readable reason, so the client can vary behaviour without parsing text. */
+  last_error_code: FailureCode
+  /**
+   * The worker's raw message. Administrators only; absent for everyone else.
+   *
+   * This names interpreter paths and argv, so it is diagnostics, not UI copy.
+   */
+  last_error_detail?: string | null
+  /** True while a scan is in flight. The presence of a start time *is* the flag. */
+  is_running: boolean
+  /** When the in-flight run began, or `null` when idle. */
+  run_started_at: string | null
+  /** Reports the source listed, once its index has been parsed. */
+  run_total: number | null
+  /** PDFs fetched in the current run. */
+  run_downloaded: number
+  /** Reports committed in the current run. */
+  run_processed: number
   next_run_at: string | null
   created_at: string | null
   created_by: number | null
@@ -53,6 +84,17 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string'
 }
 
+/**
+ * An optional nullable string.
+ *
+ * `last_error_detail` is only sent to administrators, so its absence is valid.
+ * Distinguishing "absent" from "present but wrong type" keeps the validator from
+ * rejecting a legitimate non-admin payload.
+ */
+function isOptionalNullableString(value: unknown): value is string | null | undefined {
+  return value === undefined || isNullableString(value)
+}
+
 function isSchedule(value: unknown): value is Schedule {
   if (!isRecord(value)) return false
   return (
@@ -63,9 +105,23 @@ function isSchedule(value: unknown): value is Schedule {
     && value.source_link.trim().length > 0
     && typeof value.scan_frequency === 'string'
     && SCAN_STATUSES.includes(value.scan_status as ScanStatus)
-    && typeof value.is_supported === 'boolean'
     && isNullableString(value.last_run_at)
     && isNullableString(value.last_run_status)
+    && isNullableString(value.last_error)
+    && isNullableString(value.last_error_code)
+    && isOptionalNullableString(value.last_error_detail)
+    && typeof value.is_running === 'boolean'
+    && isNullableString(value.run_started_at)
+    && (value.run_total === null
+        || (typeof value.run_total === 'number'
+            && Number.isSafeInteger(value.run_total)
+            && value.run_total >= 0))
+    && typeof value.run_downloaded === 'number'
+    && Number.isSafeInteger(value.run_downloaded)
+    && value.run_downloaded >= 0
+    && typeof value.run_processed === 'number'
+    && Number.isSafeInteger(value.run_processed)
+    && value.run_processed >= 0
     && isNullableString(value.next_run_at)
     && isNullableString(value.created_at)
     && typeof value.report_count === 'number'

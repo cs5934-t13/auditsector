@@ -6,7 +6,12 @@ from datetime import UTC, datetime
 
 import pymysql
 
-from services.scheduler.repository import connect_db, load_schedules, save_run
+from services.scheduler.repository import (
+    begin_run,
+    connect_db,
+    load_schedules,
+    save_run,
+)
 from services.scheduler.scheduler import trigger_due_scans
 
 logger = logging.getLogger(__name__)
@@ -25,11 +30,12 @@ def run_once(connection, now, trigger_scan, is_unsupported=None):
             schedules,
             now,
             trigger_scan,
-            save_result=lambda sid, started, status, next_run: save_run(
-                connection, sid, started, status, next_run
+            save_result=lambda sid, started, status, next_run, failure=None: (
+                save_run(connection, sid, started, status, next_run, failure=failure)
             ),
             clock=lambda: datetime.now(UTC),
             is_unsupported=is_unsupported,
+            begin_run=lambda sid, started: begin_run(connection, sid, started),
         )
     finally:
         with connection.cursor() as cur:

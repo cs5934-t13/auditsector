@@ -2,7 +2,12 @@ FROM python:3.14.10-slim
 
 WORKDIR /app
 
-COPY /app .
+# The build context is the repository root, so both the app and the shared
+# allow-list are reachable. `supported_sources.py` is copied in from the root
+# because the scheduler reads the same file; keeping one copy is what stops the
+# UI from disagreeing with the worker about which URLs are supported.
+COPY web/server/app/ .
+COPY supported_sources.py /app/supported_sources.py
 RUN pip install --no-cache-dir --requirement requirements.txt
 
 EXPOSE 5000

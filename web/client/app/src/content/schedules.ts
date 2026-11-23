@@ -21,9 +21,9 @@ export const SCAN_STATUS_META: Record<ScanStatus, ScanStatusMeta> = {
     color: '#1E6B4F',
   },
   UNSUPPORTED: {
-    label: 'Not supported',
+    label: 'Stopped',
     description:
-      'No scanner supports this source, so it is no longer retried. Delete it, or replace it with a supported URL.',
+      'The scanner can no longer collect this source, so it is no longer retried. The last error says why; delete the schedule or replace it with a supported URL.',
     color: '#B3401F',
   },
   DISABLED: {
@@ -32,9 +32,6 @@ export const SCAN_STATUS_META: Record<ScanStatus, ScanStatusMeta> = {
     color: '#4A5A64',
   },
 }
-
-/** Label used when a source is parked because no scanner supports it. */
-export const UNSUPPORTED_SOURCE_LABEL = 'Not supported'
 
 /** Short, human-readable summary of a run outcome. */
 export function lastRunLabel(
@@ -54,4 +51,39 @@ export function formatScheduleTime(value: string | null): string {
   // Render it as-is rather than shifting it into the browser's zone, so the
   // table matches what the scheduler recorded.
   return value.replace('T', ' ').replace(/:\d{2}$/, '')
+}
+
+/** One line describing what a running scan is doing, for every signed-in user. */
+export function runProgressLabel(schedule: {
+  is_running: boolean
+  run_total: number | null
+  run_downloaded: number
+  run_processed: number
+}): string | null {
+  if (!schedule.is_running) return null
+
+  const { run_total: total, run_downloaded: downloaded, run_processed: processed } =
+    schedule
+
+  // Before the index is parsed there is no denominator: say so rather than
+  // showing a bar that can only ever be wrong.
+  if (total === null) {
+    return downloaded > 0
+      ? `Finding reports… ${downloaded} downloaded`
+      : 'Finding reports…'
+  }
+  if (processed < total && downloaded < total) {
+    return `Downloading reports… ${downloaded} of ${total}`
+  }
+  return `Processing reports… ${processed} of ${total}`
+}
+
+/** Percentage complete for a determinate bar, or `null` while it is unknown. */
+export function runProgressPercent(schedule: {
+  is_running: boolean
+  run_total: number | null
+  run_processed: number
+}): number | null {
+  if (!schedule.is_running || !schedule.run_total) return null
+  return Math.min(100, Math.round((schedule.run_processed / schedule.run_total) * 100))
 }

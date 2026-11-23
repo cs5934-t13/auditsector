@@ -43,7 +43,29 @@ def get_due_schedules(schedules: list[Schedule], now: datetime) -> list[Schedule
     ]
 
 
-def _parked_next_run(schedule: Schedule, now: datetime) -> datetime:
+def failure_fields(error):
+    """The three failure columns for `error`: code, friendly text, raw detail.
+
+    A `ScanFailure` carries its own code and a message written for a person. Any
+    other exception is a bug or an unhandled condition, so it gets a generic code
+    and the class name as the friendly text, with the raw `str` kept for admins.
+    """
+    code = getattr(error, "code", None)
+    if code:
+        return {
+            "error_code": code,
+            "error": getattr(error, "message", None) or str(error),
+            "error_detail": str(error),
+        }
+
+    return {
+        "error_code": "SCAN_FAILED",
+        "error": "The scan stopped unexpectedly. It will try again.",
+        "error_detail": f"{type(error).__name__}: {error}",
+    }
+
+
+def _parked_next_run(now: datetime) -> datetime:
     """A future `next_run_at` for a parked schedule.
 
     The column is `NOT NULL` in the deployed schema, so parking cannot write
@@ -90,9 +112,10 @@ def trigger_due_scans(
     now: datetime,
     trigger_scan: Callable[[Schedule], None],
     save_next_run: Callable[[int, datetime], None] | None = None,
-    save_result: Callable[[int, datetime, str, datetime], None] | None = None,
+    save_result: Callable[..., None] | None = None,
     clock: Callable[[], datetime] | None = None,
     is_unsupported: Callable[[Exception], bool] | None = None,
+    begin_run: Callable[[int, datetime], None] | None = None,
 ) -> int:
     """Runs every due scan once, and returns how many failed.
 
@@ -104,10 +127,18 @@ def trigger_due_scans(
 
     `is_unsupported` lets the scheduler recognise the terminal failure without
     importing the fetcher (and its Scrapy dependency) into this module.
+
+    `begin_run` marks the schedule as scanning before the crawl starts, which is
+    the only signal the UI gets during a long download phase.
     """
     failures = 0
     for schedule in get_due_schedules(schedules, now):
         started_at = clock() if clock else now
+        # Mark the run as started before the crawl, so the table can show a
+        # progress bar while reports are still downloading.
+        if begin_run:
+            begin_run(schedule.schedule_id, started_at)
+
         try:
             next_run = calculate_next_run(
                 schedule.next_run_at or started_at, started_at, schedule.scan_frequency
@@ -136,7 +167,8 @@ def trigger_due_scans(
                         schedule.schedule_id,
                         started_at,
                         STATUS_UNSUPPORTED,
-                        _parked_next_run(schedule, started_at),
+                        _parked_next_run(started_at),
+                        failure=failure_fields(error),
                     )
                 schedule.scan_status = STATUS_UNSUPPORTED
                 continue
@@ -144,11 +176,18 @@ def trigger_due_scans(
             # Transient: retry shortly rather than marking the crawl successful.
             if save_result:
                 retry_at = (clock() if clock else now) + timedelta(minutes=5)
-                save_result(schedule.schedule_id, started_at, "ERROR", retry_at)
+                save_result(
+                    schedule.schedule_id,
+                    started_at,
+                    "ERROR",
+                    retry_at,
+                    failure=failure_fields(error),
+                )
                 schedule.next_run_at = retry_at
             continue
         # Persistence failures must stop this pass rather than silently repeat work.
         if save_result:
+            # No `error`: a success clears any previous message.
             save_result(schedule.schedule_id, started_at, "SUCCESS", next_run)
         if save_next_run:
             save_next_run(schedule.schedule_id, next_run)

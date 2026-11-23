@@ -4,7 +4,7 @@ The services container runs the AW-98 scheduler and Scott's existing Scrapy fetc
 It reads saved sources, launches supported collection scans, processes downloaded
 PDFs, and writes reports, tags, and duplicate receipts to MySQL.
 
-Build with `podman build -t services services`. The container belongs in the
+Build with `podman build -f services/Containerfile -t services .`. The container belongs in the
 existing web pod and needs MYSQL_ROOT_PASSWORD, LLM_API_URL, and LLM_API_KEY from
 Podman secrets. Do not put secret values in commands, documentation, or Git.
 

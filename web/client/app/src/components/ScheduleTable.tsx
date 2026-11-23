@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
+import Accordion from '@mui/material/Accordion';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import AccordionSummary from '@mui/material/AccordionSummary';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import LinearProgress from '@mui/material/LinearProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -21,6 +25,7 @@ import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import type { SxProps, Theme } from '@mui/material/styles';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
   deleteSchedule,
   fetchSchedules,
@@ -32,6 +37,8 @@ import {
   SCAN_STATUS_META,
   formatScheduleTime,
   lastRunLabel,
+  runProgressLabel,
+  runProgressPercent,
 } from '../content/schedules';
 import SectionPanel from './SectionPanel';
 
@@ -39,22 +46,24 @@ type LoadResult =
   | { data: Schedule[]; error?: never }
   | { error: ScheduleApiError; data?: never };
 
-/** One schedule's status, explaining an unsupported source rather than hiding it. */
+/**
+ * One schedule's status.
+ *
+ * Driven entirely by `scan_status`, which the worker sets from what actually
+ * happened. The client does not evaluate the URL against a list of supported
+ * sources; `POST /sources` already refused unsupported ones, so an entry here
+ * means the worker observed a problem worth explaining.
+ */
 function StatusChip({ schedule }: { schedule: Schedule }) {
   const meta = SCAN_STATUS_META[schedule.scan_status];
-  // A schedule can be flagged ACTIVE while its URL is unsupported (older rows);
-  // the support flag is the authoritative answer, so it wins.
-  const unsupported = !schedule.is_supported;
-  const label = unsupported ? 'Not supported' : meta.label;
-  const color = unsupported ? SCAN_STATUS_META.UNSUPPORTED.color : meta.color;
 
   return (
     <Chip
-      label={label}
+      label={meta.label}
       size="small"
       sx={{
-        color,
-        borderColor: color,
+        color: meta.color,
+        borderColor: meta.color,
         bgcolor: 'transparent',
         fontWeight: 600,
       }}
@@ -146,6 +155,17 @@ export default function ScheduleTable({ sx }: { sx?: SxProps<Theme> }) {
     setAttempt((value) => value + 1);
   }, []);
 
+  // Poll only while something is actually scanning. A 15s tick keeps a long
+  // crawl feeling live without hammering the API when nothing is happening.
+  const anyRunning = (result?.data ?? []).some((row) => row.is_running);
+  useEffect(() => {
+    if (!anyRunning) return undefined;
+    const timer = window.setInterval(() => {
+      setAttempt((value) => value + 1);
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [anyRunning]);
+
   const submitDelete = useCallback(async (schedule: Schedule) => {
     setRemoved(null);
     setConfirm({ schedule, submitting: true, error: null });
@@ -187,7 +207,7 @@ export default function ScheduleTable({ sx }: { sx?: SxProps<Theme> }) {
         {loading
           ? 'Loading scheduled sources.'
           : rows.length > 0
-            ? 'Each source below is checked on its own schedule. A source marked “Not supported” has no scanner and is no longer retried.'
+            ? 'Each source below is checked on its own schedule. When a run fails, the reason is shown under Last run.'
             : 'No sources are scheduled yet. Add one above to start scanning.'}
       </Typography>
 
@@ -244,15 +264,99 @@ export default function ScheduleTable({ sx }: { sx?: SxProps<Theme> }) {
                     </TableCell>
                     <TableCell>
                       <Stack spacing={0.25}>
-                        <Typography variant="body2">
-                          {lastRunLabel(
-                            schedule.last_run_status,
-                            schedule.last_run_at !== null,
-                          )}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {formatScheduleTime(schedule.last_run_at)}
-                        </Typography>
+                        {schedule.is_running ? (
+                          <>
+                            <Typography variant="body2">
+                              {runProgressLabel(schedule)}
+                            </Typography>
+                            {runProgressPercent(schedule) !== null ? (
+                              <LinearProgress
+                                variant="determinate"
+                                value={runProgressPercent(schedule) ?? 0}
+                                aria-label="Scan progress"
+                                sx={{ maxWidth: 220, borderRadius: 1, mt: 0.5 }}
+                              />
+                            ) : (
+                              <LinearProgress
+                                aria-label="Scan progress"
+                                sx={{ maxWidth: 220, borderRadius: 1, mt: 0.5 }}
+                              />
+                            )}
+                            {/* Admins get the raw counters; everyone else the sentence. */}
+                            {isAdmin && (
+                              <Typography variant="caption" color="text.secondary">
+                                started {formatScheduleTime(schedule.run_started_at)} ·{' '}
+                                downloaded {schedule.run_downloaded} · processed{' '}
+                                {schedule.run_processed}
+                                {schedule.run_total !== null &&
+                                  ` of ${schedule.run_total}`}
+                              </Typography>
+                            )}
+                          </>
+                        ) : (
+                          <Typography variant="body2">
+                            {lastRunLabel(
+                              schedule.last_run_status,
+                              schedule.last_run_at !== null,
+                            )}
+                          </Typography>
+                        )}
+                        {!schedule.is_running && (
+                          <Typography variant="caption" color="text.secondary">
+                            {formatScheduleTime(schedule.last_run_at)}
+                          </Typography>
+                        )}
+                        {!schedule.is_running && schedule.last_error && (
+                          <Typography
+                            variant="caption"
+                            color="error.main"
+                            sx={{ display: 'block', maxWidth: 320 }}
+                          >
+                            {schedule.last_error}
+                          </Typography>
+                        )}
+                        {/*
+                          Raw worker text is diagnostics, not UI copy: it names
+                          interpreter paths and argv. Only administrators get it,
+                          and only behind a disclosure so it never competes with
+                          the sentence above.
+                        */}
+                        {!schedule.is_running && isAdmin && schedule.last_error_detail && (
+                          <Accordion
+                            disableGutters
+                            elevation={0}
+                            sx={{ bgcolor: 'transparent', '&:before': { display: 'none' } }}
+                          >
+                            <AccordionSummary
+                              expandIcon={<ExpandMoreIcon fontSize="small" />}
+                              sx={{
+                                minHeight: 0,
+                                p: 0,
+                                '& .MuiAccordionSummary-content': { my: 0 },
+                              }}
+                            >
+                              <Typography variant="caption" color="text.secondary">
+                                Technical details
+                              </Typography>
+                            </AccordionSummary>
+                            <AccordionDetails sx={{ p: 0, pt: 0.5 }}>
+                              <Typography
+                                component="pre"
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  m: 0,
+                                  maxWidth: 320,
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word',
+                                  fontFamily: 'monospace',
+                                }}
+                              >
+                                {schedule.last_error_detail}
+                              </Typography>
+                            </AccordionDetails>
+                          </Accordion>
+                        )}
                       </Stack>
                     </TableCell>
                     <TableCell>{formatScheduleTime(schedule.next_run_at)}</TableCell>

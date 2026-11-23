@@ -58,6 +58,25 @@ found nothing wrong is `INFO`. The reply is validated against the enum;
 anything unparseable becomes `NULL` ("Not rated") rather than being coerced to a
 level the report did not earn.
 
+## Scan progress and resumability
+
+A crawl reports progress to `schedules` so the UI can show it while the run is
+in flight (`fetcher/progress.py`): the total once the index is parsed, then a
+running count of downloads and of committed reports. A progress write never
+fails a scan.
+
+`fetches.status` distinguishes `DOWNLOADED` from `PROCESSED`. Only `PROCESSED`
+suppresses a re-download, so a crawl killed mid-processing resumes: finished
+reports are skipped, unfinished ones keep their file (Scrapy's `FILES_STORE`
+cache) and are processed on the next pass instead of being silently dropped.
+
+A batch is processed per report, not per download set. If one PDF out of two
+hundred fails to download, the other 199 are still processed and the shortfall is
+logged with the failed URLs. Previously a single failure discarded the whole
+batch. The crawl still exits non-zero on download failures, so the run is
+reported as failed and retried; the failed URLs have no `PROCESSED` receipt, so
+`new_files()` re-queues exactly those.
+
 ## Backfilling existing titles
 
 Rows written before these fixes hold the download hash in `audit_headers.title`,

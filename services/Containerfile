@@ -1,7 +1,11 @@
 # uv image ships Python 3.14.10 + a current uv. No exact-patch tag is published,
 # so this pins at the minor level.
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim
-COPY ./ /services
+# The build context is the repository root so the shared allow-list is reachable.
+COPY services/ /services
+# Shared allow-list of scannable sources, read by the web tier too. `PYTHONPATH=/`
+# below makes it importable as `supported_sources`.
+COPY supported_sources.py /supported_sources.py
 WORKDIR /services/fetcher
 RUN uv sync --locked
 ENV PYTHONPATH=/

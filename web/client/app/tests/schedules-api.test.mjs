@@ -11,7 +11,13 @@ const schedule = {
   source_link: 'https://www.seattle.gov/city-auditor/reports',
   scan_frequency: 'WEEKLY',
   scan_status: 'ACTIVE',
-  is_supported: true,
+  last_error: null,
+  last_error_code: null,
+  is_running: false,
+  run_started_at: null,
+  run_total: null,
+  run_downloaded: 0,
+  run_processed: 0,
   last_run_at: '2026-09-30T14:25:00',
   last_run_status: 'SUCCESS',
   next_run_at: '2026-10-07T14:25:00',
@@ -43,12 +49,14 @@ test('fetchSchedules requests the authenticated list', async () => {
   assert.equal(result[0].report_count, 12);
 });
 
-test('fetchSchedules accepts an unsupported parked schedule', async () => {
+test('fetchSchedules carries the worker\'s failure reason', async () => {
   const parked = {
     ...schedule,
     scan_status: 'UNSUPPORTED',
-    is_supported: false,
     last_run_status: 'ERROR',
+    last_error: 'This source is not supported yet.',
+    last_error_code: 'UNSUPPORTED_SOURCE',
+    last_error_detail: 'No spider supports this collection URL yet',
   };
 
   const result = await fetchSchedules({
@@ -56,7 +64,50 @@ test('fetchSchedules accepts an unsupported parked schedule', async () => {
   });
 
   assert.equal(result[0].scan_status, 'UNSUPPORTED');
-  assert.equal(result[0].is_supported, false);
+  assert.equal(result[0].last_error, 'This source is not supported yet.');
+  assert.equal(result[0].last_error_code, 'UNSUPPORTED_SOURCE');
+  // Admin-only diagnostics are optional: the client tolerates their absence.
+  assert.equal(result[0].last_error_detail, 'No spider supports this collection URL yet');
+});
+
+test('fetchSchedules works without administrator detail', async () => {
+  const row = {
+    ...schedule,
+    last_run_status: 'ERROR',
+    last_error: 'We could not read reports from this source.',
+    last_error_code: 'SOURCE_UNREADABLE',
+  };
+
+  const result = await fetchSchedules({ fetcher: async () => json({ data: [row] }) });
+
+  assert.equal(result[0].last_error_code, 'SOURCE_UNREADABLE');
+  assert.equal(result[0].last_error_detail, undefined);
+});
+
+test('fetchSchedules carries live progress for a running scan', async () => {
+  const running = {
+    ...schedule,
+    is_running: true,
+    run_started_at: '2026-11-23T15:32:06',
+    run_total: 209,
+    run_downloaded: 209,
+    run_processed: 41,
+  };
+
+  const result = await fetchSchedules({ fetcher: async () => json({ data: [running] }) });
+
+  assert.equal(result[0].is_running, true);
+  assert.equal(result[0].run_total, 209);
+  assert.equal(result[0].run_processed, 41);
+});
+
+test('fetchSchedules rejects progress counts that are not integers', async () => {
+  await assert.rejects(
+    fetchSchedules({
+      fetcher: async () => json({ data: [{ ...schedule, run_processed: 1.5 }] }),
+    }),
+    (error) => error.code === 'UNEXPECTED_RESPONSE',
+  );
 });
 
 test('fetchSchedules rejects a malformed row', async () => {
