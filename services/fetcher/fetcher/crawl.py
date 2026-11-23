@@ -9,7 +9,24 @@ from scrapy.utils.project import get_project_settings
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--spider", choices=["portland_or", "seattle_wa"], required=True
+        "--spider",
+        choices=[
+            "portland_or",
+            "portland_audit_reports",
+            "seattle_wa",
+            "tulsa_ok",
+            "clark_wa",
+            "denver_co",
+            "king_county_wa",
+            "maricopa_az",
+            "portland_audit_services",
+            "sacramento_ca",
+            "san_diego_ca",
+            "san_francisco_ca",
+            "san_jose_ca",
+            "virginia_beach_va",
+        ],
+        required=True,
     )
     parser.add_argument("--source", required=True)
     parser.add_argument("--schedule-id", type=int, required=True)

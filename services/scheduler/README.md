@@ -1,9 +1,10 @@
 # Scheduler (AW-98)
 
 The existing services container runs `python -m services.scheduler` through uv.
-It checks saved sources every 60 seconds, sequentially, and launches the existing
-Scrapy Portland or Seattle spider in a child process. Other collections report an
-error until a suitable spider is added; this is not a generic website crawler.
+It checks saved sources every 60 seconds, sequentially, and launches the matching
+Scrapy spider in a child process. Supported collection pages are listed in
+`services/sample_pages.csv`; each has a site-specific spider and download directory.
+Unsupported collections report an error; this is not a generic website crawler.
 
 - New sources with no next-run time run on the next pass. ARCHIVE never runs.
 - HOURLY/DAILY/WEEKLY preserve their slots; missed slots produce one scan.
@@ -27,5 +28,5 @@ Run unit tests in the image with `uv run --no-sync python -m unittest discover
 -s /services/scheduler -p 'test_*.py'`. Integration tests use a disposable database.
 
 Existing pipeline limitations remain: audit_date is ingestion time, report titles
-use PDF filenames, risk defaults to INFO, and only the current spider selectors
-are supported. Recent Reports requires the separate AW-105 frontend integration.
+use PDF filenames, and risk defaults to INFO. Recent Reports requires the separate
+AW-105 frontend integration.

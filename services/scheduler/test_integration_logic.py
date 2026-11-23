@@ -76,13 +76,25 @@ class IntegrationLogicTests(unittest.TestCase):
             )
 
     def test_only_supported_collections_are_routed(self):
-        self.assertEqual(
-            spider_for_url("https://www.seattle.gov/city-auditor/reports"), "seattle_wa"
-        )
-        self.assertEqual(
-            spider_for_url("https://efiles.portlandoregon.gov/record?q=example"),
-            "portland_or",
-        )
+        supported = {
+            "https://efiles.portlandoregon.gov/record?q=example": "portland_or",
+            "https://www.portland.gov/auditor/audit-services/about-us/audit-reports-online": "portland_audit_reports",
+            "https://www.seattle.gov/city-auditor/reports": "seattle_wa",
+            "https://www.cityoftulsa.org/government/internal-audit-reports/": "tulsa_ok",
+            "https://clark.wa.gov/auditor/auditor-documents": "clark_wa",
+            "https://denvergov.org/Government/Agencies-Departments-Offices/Agencies-Departments-Offices-Directory/Auditors-Office/Audit-Services/Audit-Reports": "denver_co",
+            "https://kingcounty.gov/en/independents/governance-and-leadership/government-oversight/auditors-office/reports-papers": "king_county_wa",
+            "https://www.azauditor.gov/counties/maricopa-county": "maricopa_az",
+            "https://www.portland.gov/auditor/audit-services": "portland_audit_services",
+            "https://www.cityofsacramento.gov/auditor": "sacramento_ca",
+            "https://www.sandiego.gov/auditor/reports": "san_diego_ca",
+            "https://www.sf.gov/information--city-services-auditor": "san_francisco_ca",
+            "https://www.sanjoseca.gov/your-government/appointees/city-auditor/audit-reports-4828": "san_jose_ca",
+            "https://auditor.virginiabeach.gov/": "virginia_beach_va",
+        }
+        for url, expected in supported.items():
+            with self.subTest(url=url):
+                self.assertEqual(spider_for_url(url), expected)
         for url in [
             "https://example.com",
             "file:///etc/passwd",
