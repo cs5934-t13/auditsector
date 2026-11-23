@@ -7,6 +7,18 @@ one. These endpoints close a gap where schedules were write-only: `POST /sources
 created them, but nothing could read them back, so the UI could not show what was
 scheduled or why a source produced no reports.
 
+## Time zones
+
+Every timestamp in this response is UTC, sent as `YYYY-MM-DDTHH:MM:SS` with no
+suffix. The database runs with `time_zone = SYSTEM` on a UTC container and every
+writer uses `UTC_TIMESTAMP()`, so the values are unambiguous — but the absence of
+a `Z` means a client must add it before formatting.
+
+The web client treats them as instants and converts to the viewer's zone, so a
+scan at `16:15` UTC reads `10:15 AM` to someone in Chicago. Calendar dates
+elsewhere in the API (`audit_date`) are **not** instants and must stay pinned to
+UTC; converting those shifts the day for anyone west of Greenwich.
+
 ## Authentication
 
 Both endpoints require an authenticated Flask session.
@@ -50,7 +62,7 @@ deliberately and are expected to number in the tens.
 | `source_link` | string | The collection URL being scanned. |
 | `scan_frequency` | string | `HOURLY`, `DAILY`, `WEEKLY`, `MONTHLY`, or `ARCHIVE`. |
 | `scan_status` | string | `ACTIVE`, `UNSUPPORTED`, or `DISABLED`. |
-| `last_run_at` | string or `null` | Start of the last run, `YYYY-MM-DDTHH:MM:SS` UTC. |
+| `last_run_at` | string or `null` | Start of the last run, `YYYY-MM-DDTHH:MM:SS` **UTC**. |
 | `last_run_status` | string or `null` | `SUCCESS` or `ERROR`. |
 | `last_error_code` | string or `null` | Stable reason code: `UNSUPPORTED_SOURCE`, `SOURCE_UNREADABLE`, `SCAN_TIMEOUT`, or `SCAN_FAILED`. |
 | `last_error` | string or `null` | A short sentence for end users, composed from `last_error_code`. `null` after a success. |

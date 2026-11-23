@@ -74,6 +74,15 @@ cookie established by a successful login. An unauthenticated request returns
 `DATETIME` values without timezone information, and the response preserves the
 stored values without adding a UTC suffix or offset.
 
+The two are different kinds of value and clients must treat them differently:
+
+- `created_at` is an **instant** — when the fetcher inserted the row. It is UTC,
+  so a client should append `Z` and format it in the viewer's time zone.
+- `audit_date` is a **calendar date** — the day the report was published. It
+  carries no time-of-day meaning even though the column is a `DATETIME`, so a
+  client must not convert it; doing so shifts the day for viewers west of
+  Greenwich.
+
 `audit_date` is the report's **publication date**, not the crawl time. The
 fetcher fills it from the page-1 masthead (for example `April 16, 2020` or
 `MARCH 2023`), then from the PDF's `CreationDate` metadata. A month-and-year

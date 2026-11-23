@@ -5,6 +5,7 @@
  * one place, matching `content/riskLevels.ts` and `content/frequencies.ts`.
  */
 import type { ScanStatus } from '../api/schedules'
+import { formatStoredDateTimeShort } from '../utils/formatDate'
 
 export interface ScanStatusMeta {
   label: string
@@ -44,13 +45,17 @@ export function lastRunLabel(
   return 'Unknown'
 }
 
-/** Formats a server timestamp for display, or a dash when absent. */
+/**
+ * Formats a schedule timestamp in the viewer's time zone, or a dash when absent.
+ *
+ * The API sends UTC without a suffix, so this converts rather than printing the
+ * stored value: a scan that ran at 16:15 UTC should read as 10:15 to someone in
+ * Chicago. Calendar dates (`audit_date`) are handled separately, because those
+ * must not be shifted.
+ */
 export function formatScheduleTime(value: string | null): string {
   if (!value) return '—'
-  // The API emits `YYYY-MM-DDTHH:MM:SS` without a zone, and the value is UTC.
-  // Render it as-is rather than shifting it into the browser's zone, so the
-  // table matches what the scheduler recorded.
-  return value.replace('T', ' ').replace(/:\d{2}$/, '')
+  return formatStoredDateTimeShort(value)
 }
 
 /** One line describing what a running scan is doing, for every signed-in user. */
