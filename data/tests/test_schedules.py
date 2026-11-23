@@ -1,4 +1,5 @@
 from datetime import datetime, date
+from uuid import uuid4
 
 import pymysql
 import pytest
@@ -264,8 +265,10 @@ def test_delete_schedule_with_audit_rejected(cur):
     user_id = insert_user(cur)
     schedule_id = insert_schedule(cur, user_id)
     cur.execute(
-        "INSERT INTO audit_headers (schedule_id, title, audit_date) VALUES (%s, %s, %s)",
-        (schedule_id, "Legitimate Audit", date(2026, 11, 5)),
+        "INSERT INTO audit_headers (audit_id, schedule_id, title, audit_date, audit_url) "
+        "VALUES (%s, %s, %s, %s, %s)",
+        (str(uuid4()), schedule_id, "Legitimate Audit", date(2026, 11, 5),
+         "https://example.invalid/reports/legitimate.pdf"),
     )
     with pytest.raises(pymysql.err.IntegrityError):
         cur.execute("DELETE FROM schedules WHERE schedule_id = %s", (schedule_id,))

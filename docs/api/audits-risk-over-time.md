@@ -2,9 +2,11 @@
 
 ## Status
 
-Proposed contract for the homepage "Risk levels over time" chart. The front-end
-currently renders placeholder data (`web/client/app/src/content/riskActivity.ts`);
-this documents the endpoint it expects once implemented.
+Implemented. Powers the homepage "Risk levels over time" chart
+(`web/client/app/src/components/RiskLevelChart.tsx`) and the shared aggregation
+helpers in `web/server/app/app.py`. Tests:
+`web/server/app/test_home_activity.py` and
+`web/client/app/tests/home-activity-api.test.mjs`.
 
 ## Purpose
 
@@ -16,6 +18,18 @@ by showing how severe the scanned reports are, not just how many there are.
 Risk levels match `audit_headers.risk_level`:
 `ENUM('INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL') NULL`.
 
+Each level is assigned by the fetcher's classifier, from the most serious finding
+the report substantiates:
+
+| Level | Meaning |
+|---|---|
+| `INFO` | Informational; no actionable findings. |
+| `LOW` | Minor or administrative weaknesses with limited impact. |
+| `MEDIUM` | Control weaknesses or performance gaps needing a planned response. |
+| `HIGH` | Significant, material, or recurring weaknesses needing prompt action. |
+| `CRITICAL` | Severe or systemic failure, such as fraud, safety risk, or major loss. |
+| `NULL` | Not classified; charted as `UNRATED`. |
+
 ## Request
 
 **Method:** `GET`
@@ -26,15 +40,25 @@ Risk levels match `audit_headers.risk_level`:
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `start_date` | date string | Yes | None | First included report publication date, `YYYY-MM-DD`. |
-| `end_date` | date string | Yes | None | Last included report publication date, `YYYY-MM-DD`. |
-| `interval` | enum | No | `MONTH` | Bucket size: `DAY`, `WEEK`, or `MONTH`. |
+| `start_date` | date string | No | 12 months ago | First included report publication date, `YYYY-MM-DD`. |
+| `end_date` | date string | No | End of the current month | Last included report publication date, `YYYY-MM-DD`. |
+| `interval` | enum | No | `MONTH` | Bucket size: `DAY`, `WEEK`, or `MONTH` (case-insensitive). |
+
+Omitting both dates returns the last 12 months including the current one, which
+is the range the homepage chart requests. Ranges spanning more than 1000 buckets
+are rejected rather than returned.
 
 Both dates must be valid calendar dates and `start_date` must be on or before
 `end_date`. Both boundaries are inclusive.
 
 The range filters report publication dates (`audit_headers.audit_date`), not
 scan dates, so the series lines up with the reports' own timelines.
+
+`audit_date` is derived from the PDF (page-1 masthead, then creation metadata),
+so the default 12-month window contains only reports actually published in that
+period. Reports scanned recently but published earlier fall outside it; widen
+`start_date` to include them, or use `GET /audits/scan-activity`, which buckets
+on `created_at` instead.
 
 ### Example Request
 
@@ -95,7 +119,7 @@ including unclassified ones.
 | Field | Type | Meaning |
 |---|---|---|
 | `period` | string | Bucket start, `YYYY-MM-DD` for `DAY`/`WEEK` and `YYYY-MM` for `MONTH`. Sortable and timezone-free. |
-| `label` | string | Short display label for the x axis (for example `Jan`). |
+| `label` | string | Short display label for the x axis (`Jan` for `MONTH`, `Mar 9` for `DAY`/`WEEK`). |
 | `total` | integer | Reports in the bucket across all levels, including unclassified. |
 | `counts` | object | Per-level report counts. `UNRATED` counts reports whose `risk_level` is `NULL` and is charted separately from the five levels. |
 
@@ -107,15 +131,22 @@ never confused with a bad request.
 
 ```json
 {
-  "data": []
+  "data": [
+    {
+      "period": "2026-01",
+      "label": "Jan",
+      "total": 0,
+      "counts": { "INFO": 0, "LOW": 0, "MEDIUM": 0, "HIGH": 0, "CRITICAL": 0, "UNRATED": 0 }
+    }
+  ]
 }
 ```
 
-`data: []` is returned only when the range contains no buckets at all.
+`data: []` is never returned: a valid range always yields at least one bucket.
 
 ## Error Responses
 
-### Invalid Date Range
+### Invalid Range or Interval
 
 **Status:** `400 Bad Request`
 
@@ -128,18 +159,8 @@ never confused with a bad request.
 }
 ```
 
-### Invalid Interval
-
-**Status:** `400 Bad Request`
-
-```json
-{
-  "error": {
-    "code": "INVALID_INTERVAL",
-    "message": "interval must be one of DAY, WEEK, MONTH"
-  }
-}
-```
+The same code covers an unparseable date, an unsupported `interval`, and an
+oversized range; the `message` names the offending parameter.
 
 ### Internal Server Error
 
@@ -161,4 +182,5 @@ never confused with a bad request.
 - Per-level counts sum to `total`, and unclassified reports are counted
   separately as `UNRATED` rather than dropped.
 - Successful, empty, and error responses are documented.
-- The contract is reviewed by the team before implementation begins.
+- The response is validated by the client before charting, including that the
+  per-level counts plus `UNRATED` equal `total` and that buckets ascend.

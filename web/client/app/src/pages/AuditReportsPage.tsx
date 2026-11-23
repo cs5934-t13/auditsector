@@ -15,6 +15,7 @@ import FeatureGrid from '../components/FeatureGrid';
 import PageSection from '../components/PageSection';
 import RecentReportsTable from '../components/RecentReportsTable';
 import ScanFrequencyForm from '../components/ScanFrequencyForm';
+import ScheduleTable from '../components/ScheduleTable';
 import SectionPanel from '../components/SectionPanel';
 
 const features = [
@@ -66,6 +67,10 @@ export default function AuditReportsPage() {
         </FeatureGrid>
 
         <ScanFrequencyForm />
+
+        {/* Sits directly below the add form: what you just saved, and what the
+            worker is currently watching, in one place. */}
+        <ScheduleTable sx={{ mt: 3 }} />
 
         <RecentReportsSection key={user?.username ?? 'anonymous'} />
       </PageSection>

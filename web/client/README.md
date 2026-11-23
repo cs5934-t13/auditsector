@@ -175,17 +175,53 @@ Expected response (wrapped in `data`, snake_case or camelCase accepted):
 {
   "data": {
     "organization_name": "City of Alexandria",
-    "password_reset_message": "To reset your password, contact the administrators.",
-    "general_help": "For help using AuditSector, review the guidance below or contact your administrator."
+    "password_reset_message": "<p>To reset your password, contact the administrators.</p>",
+    "general_help": "<p>For help using Audit Sector, review the guidance below or contact your administrator.</p>",
+    "contact": "<p>Contact us at <a href=\"mailto:team@auditsector.example\">team@auditsector.example</a>.</p>"
   }
 }
 ```
 
 | Setting | Used by |
 |---|---|
-| `organization_name` | Header brand block (heading above "AuditSector") |
-| `password_reset_message` | "Forgot password?" dialog |
-| `general_help` | Help section on the Settings page |
+| `organization_name` | Header brand block (heading above "Audit Sector"); plain text |
+| `password_reset_message` | "Forgot password?" dialog; rich text |
+| `general_help` | Help section on the Settings page; rich text |
+| `contact` | Footer's Contact column; rich text |
+
+### Rich-text settings
+
+The three rich-text fields are edited with `components/RichTextEditor.tsx` (bold,
+italic, underline, lists, and links) and rendered with
+`components/RichText.tsx`.
+
+The editor has two views, switched from the toolbar:
+
+| Control | Effect |
+|---|---|
+| **B / I / U** | Bold, italic, underline at the caret or over the selection |
+| **• / 1.** | Bulleted or numbered list |
+| **Link** | Opens a dialog to create, change, or remove a link. Uses the caret position or the selected text, so it works both for linking a word and for dropping in a URL |
+| **HTML** | Swaps the rich editor for a text area holding the source, to inspect or paste exact markup |
+
+While the HTML view is open the text is passed through untouched — sanitizing
+per keystroke would append closing tags and move the caret. It is cleaned on blur,
+by the **Clean up formatting** action, and again when the form saves, so the value
+sent to the API always matches the allow-list.
+
+- `utils/richtext.ts` holds the rules: `RICH_TEXT_TAGS` (the allow-list),
+  `sanitizeRichText` (re-serializes to that subset), `richTextToPlainText`,
+  `isRichTextEmpty`, and `plainTextToRichText` (converts a legacy plain value).
+  It is dependency-free and DOM-free, so it is unit-tested by
+  `tests/richtext.test.mjs` and `tests/richtext-save.test.mjs`.
+- `RichText` sanitizes at the point of use, not just on save. The database is the
+  trust boundary — a row can be seeded by SQL or written by an older client.
+- `api/settings.ts` falls back to `content/messages.ts` when a value is missing
+  *or* visually empty (`<p><br></p>`), and converts legacy plain text to HTML.
+- The server validates the same allow-list (`web/server/app/richtext.py`) and
+  rejects anything else with `400`; it does not rewrite. Keep
+  `RICH_TEXT_TAGS` in the two files in sync — `test_richtext.py` asserts they
+  match.
 
 `AdminSettingsForm` saves via `PUT /api/settings` with snake_case keys and
 requires an `ADMIN` session (`403` otherwise). `GET /api/settings` is public,

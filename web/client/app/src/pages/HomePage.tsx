@@ -11,7 +11,6 @@ import PageSection from '../components/PageSection';
 import RecentAuditsGrid from '../components/RecentAuditsGrid';
 import RiskLevelChart from '../components/RiskLevelChart';
 import ScanActivityChart from '../components/ScanActivityChart';
-import { SCROLL_OFFSET } from '../content/layout';
 import { useAuth } from '../auth/AuthContext';
 import { ROUTES } from '../routes';
 
@@ -42,16 +41,13 @@ export default function HomePage() {
               Welcome back{user ? `, ${user.username}` : ''}.
             </Typography>
 
- 
-
-
-            <Box
-              component="section"
-              id="recent-audits"
-              sx={{ scrollMarginTop: SCROLL_OFFSET }}
-            >
-              <RecentAuditsGrid />
-            </Box>
+            {/*
+              Each panel below owns its own `<section>` and heading id, so the
+              quick-links rail can still scroll to `#recent-audits`,
+              `#risk-levels`, and `#scan-activity`. Wrapping them in another
+              section here would nest identical landmarks.
+            */}
+            <RecentAuditsGrid />
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <Button
@@ -72,23 +68,9 @@ export default function HomePage() {
                 Browse tags
               </Button>
             </Stack>
-            
-            <Box
-              component="section"
-              id="risk-levels"
-              sx={{ scrollMarginTop: SCROLL_OFFSET }}
-            >
-              <RiskLevelChart />
-            </Box>
-            
-            <Box
-              component="section"
-              id="scan-activity"
-              sx={{ scrollMarginTop: SCROLL_OFFSET }}
-            >
-              <ScanActivityChart />
-            </Box>
 
+            <RiskLevelChart />
+            <ScanActivityChart />
           </Stack>
 
           <HomeSidebar />

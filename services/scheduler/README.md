@@ -11,6 +11,10 @@ Unsupported collections report an error; this is not a generic website crawler.
 - MONTHLY advances calendar months, clamping the stored day at month end.
 - Times are UTC. Run start, SUCCESS/ERROR, and next time are saved together.
 - Failed scans retry after five minutes. A MySQL lock prevents overlapping passes.
+- A source no spider supports is **parked**, not retried: `scan_status` becomes
+  `UNSUPPORTED`, `last_run_status` records `ERROR`, and the worker never picks it
+  up again. Retrying a permanently unsupported URL only floods the log. Clear it
+  with `DELETE /schedules/<id>` (admin) or by registering a supported URL.
 - Reports use the real schedule ID. A receipt is committed with each saved report;
   failed downloads/processing remain retryable. Repeated scans skip saved URLs.
 - Scrapy errors and pipeline errors make the child process fail, not just print logs.
@@ -27,6 +31,7 @@ LLM_API_URL, and LLM_API_KEY from the existing Podman secrets configuration.
 Run unit tests in the image with `uv run --no-sync python -m unittest discover
 -s /services/scheduler -p 'test_*.py'`. Integration tests use a disposable database.
 
-Existing pipeline limitations remain: audit_date is ingestion time, report titles
-use PDF filenames, and risk defaults to INFO. Recent Reports requires the separate
-AW-105 frontend integration.
+Existing pipeline limitations remain: only the current spider selectors are
+supported. Report titles, publication dates, and risk levels are now derived from
+the PDF by the fetcher (`fetcher/ai/`); see its README for the fallback chains and
+the backfill script for repairing older rows.

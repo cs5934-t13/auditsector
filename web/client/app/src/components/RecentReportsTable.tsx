@@ -1,31 +1,7 @@
 import Box from '@mui/material/Box';
-import { DataGrid, type GridColDef, type GridPaginationModel } from '@mui/x-data-grid';
+import { DataGrid, type GridPaginationModel } from '@mui/x-data-grid';
 import type { RecentAuditRecord } from '../content/recentReports';
-
-function formatStoredDateTime(value: string): string {
-  return value.replace('T', ' ');
-}
-
-const columns: GridColDef<RecentAuditRecord>[] = [
-  {
-    field: 'title',
-    headerName: 'Title',
-    flex: 1,
-    minWidth: 260,
-  },
-  {
-    field: 'audit_date',
-    headerName: 'Audit date',
-    width: 190,
-    valueFormatter: formatStoredDateTime,
-  },
-  {
-    field: 'created_at',
-    headerName: 'Added',
-    width: 190,
-    valueFormatter: formatStoredDateTime,
-  },
-];
+import { recentAuditColumns } from './recentAuditColumns';
 
 function getAuditId(row: RecentAuditRecord): string | number {
   return row.audit_id;
@@ -56,7 +32,7 @@ export default function RecentReportsTable({
     <Box sx={{ height: 420, width: '100%', minWidth: 0 }}>
       <DataGrid<RecentAuditRecord>
         rows={rows}
-        columns={columns}
+        columns={recentAuditColumns}
         getRowId={getAuditId}
         getRowHeight={getRowHeight}
         disableRowSelectionOnClick
