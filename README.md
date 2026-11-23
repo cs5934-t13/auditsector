@@ -63,11 +63,11 @@ podman build -t client web/client
 ```
 3. Build the server module
 ```
-podman build -t server web/server
+podman build -f web/server/Containerfile -t server .
 ```
 4. Build the services module
 ```
-podman build -t services services
+podman build -f services/Containerfile -t services .
 ```
 5. Build the data module
 ```

@@ -1,9 +1,25 @@
-"""One crawl per process, with an exit status that includes pipeline failures."""
+"""One crawl per process, with an exit status that includes pipeline failures.
+
+On failure the crawler prints one machine-readable line,
+
+    SCAN_FAILURE: <reason>
+
+to stderr. The scheduler reads that line rather than reporting the bare exit
+status, so a stored error says *why* the crawl failed instead of naming the
+subprocess that ran it.
+"""
 
 import argparse
+import sys
+
 from scrapy import signals
 from scrapy.crawler import CrawlerProcess
 from scrapy.utils.project import get_project_settings
+
+#: Prefix the scheduler looks for. Keep the two in step.
+FAILURE_PREFIX = "SCAN_FAILURE: "
+#: Longest reason emitted, so one enormous traceback cannot dominate the line.
+MAX_REASON_LENGTH = 500
 
 
 def main():
@@ -35,9 +51,16 @@ def main():
     crawler = process.create_crawler(args.spider)
     failed = []
     reasons = []
+    failures = []
 
-    def error(**kwargs):
+    def error(failure=None, **kwargs):
+        """Record the crawl's own reason, not just that it failed."""
         failed.append(True)
+        if failure is not None:
+            try:
+                failures.append(failure.getErrorMessage())
+            except Exception:  # pylint: disable=broad-except
+                failures.append(str(failure))
 
     def closed(reason, **kwargs):
         reasons.append(reason)
@@ -51,7 +74,14 @@ def main():
     failed_downloads = stats.get("retry/max_reached", 0) or stats.get(
         "httperror/response_ignored_count", 0
     )
-    return 1 if failed or failed_downloads or reasons != ["finished"] else 0
+    exit_code = 1 if failed or failed_downloads or reasons != ["finished"] else 0
+
+    if exit_code:
+        # The first failure is usually the cause; later ones are often fallout.
+        reason = failures[0] if failures else "The crawl did not finish"
+        print(FAILURE_PREFIX + reason[:MAX_REASON_LENGTH], file=sys.stderr)
+
+    return exit_code
 
 
 if __name__ == "__main__":

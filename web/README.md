@@ -44,8 +44,8 @@ From the `auditsector` project root:
 1. Build the images. The data image must be tagged `db-init` to match `pod.yaml`.
 ```
 podman build -t client web/client
-podman build -t server web/server
-podman build -t services services
+podman build -f web/server/Containerfile -t server .
+podman build -f services/Containerfile -t services .
 podman build -t db-init data
 ```
 2. Create `secrets.yaml` from `secrets.yaml.template`, supplying **both**
@@ -71,7 +71,7 @@ secrets and pass them with `-e`:
 2. Build the client and server modules
 ```
 podman build -t client web/client
-podman build -t server web/server
+podman build -f web/server/Containerfile -t server .
 ```
 3. Create the pod that directs the host's port 8080 to the pod's port 80
 ```

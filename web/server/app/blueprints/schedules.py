@@ -11,17 +11,44 @@ rather than cascading by surprise.
 """
 
 import pymysql
-from flask import Blueprint
+from flask import Blueprint, session
 
 import db
 import routing
-from auth import admin_required, login_required
-from services.audits.support import is_supported
+from auth import admin_required, current_role, login_required
 
 bp = Blueprint("schedules", __name__)
 
 #: `schedules.scan_status` values. Mirrors the column's ENUM.
 ACTIVE = "ACTIVE"
+
+#: Wording per failure code, shown to every signed-in user. Kept server-side so
+#: the sentence can be improved without shipping a new client build, and so the
+#: raw worker message is never the user-facing label.
+FAILURE_MESSAGES = {
+    "UNSUPPORTED_SOURCE": (
+        "This source is not supported yet. Remove it, or use a supported address."
+    ),
+    "SOURCE_UNREADABLE": (
+        "We couldn't read reports from this source. It will try again shortly."
+    ),
+    "SCAN_TIMEOUT": (
+        "The scan took too long. It will try again."
+    ),
+    "SCAN_FAILED": (
+        "The scan stopped unexpectedly. It will try again."
+    ),
+}
+
+
+def _is_admin():
+    """True when the session's *current* role is ADMIN.
+
+    Read from the database rather than the session blob, matching the guards, so
+    a demoted administrator stops seeing diagnostics immediately.
+    """
+    row = current_role(session.get("username"))
+    return bool(row) and row["user_role"] == "ADMIN" and row["user_status"] == "ACTIVE"
 
 
 def _db_error():
@@ -40,24 +67,40 @@ def _isoformat(value):
     return value.isoformat(timespec="seconds") if value is not None else None
 
 
-def serialize_schedule(row):
+def serialize_schedule(row, include_detail=False):
     """One schedule as the client expects it.
 
-    `report_count` lets the UI explain a delete that will be refused, and
-    `is_supported` is derived from the same allow-list the scheduler uses, so the
-    table can flag a source that will never scan.
+    `report_count` lets the UI explain a delete that will be refused. The run
+    state and `last_error` report what the worker observed; the UI does not
+    re-derive support from the URL. Stored schedules are supported by
+    construction, because `POST /sources` refuses unsupported ones. The only way
+    a stored schedule becomes unsupported is a source being dropped from the
+    allow-list later, and that surfaces as `scan_status: "UNSUPPORTED"` with the
+    worker's reason in `last_error`.
     """
     return {
         "schedule_id": row["schedule_id"],
         "source_link": row["source_link"],
         "scan_frequency": row["scan_frequency"],
         "scan_status": row.get("scan_status") or ACTIVE,
-        # Whether any spider can collect this source. A schedule can exist for an
-        # unsupported URL (older data, or a hand-written row), and the UI must be
-        # able to say so rather than imply the source is simply idle.
-        "is_supported": is_supported(row["source_link"]),
         "last_run_at": _isoformat(row.get("last_run_at")),
         "last_run_status": row.get("last_run_status"),
+        # A stable code the UI can switch on, and a sentence written for a person.
+        # The raw worker text is *not* sent: it names interpreter paths and argv.
+        "last_error_code": row.get("last_error_code"),
+        "last_error": (
+            FAILURE_MESSAGES.get(row.get("last_error_code"))
+            or row.get("last_error")
+        ),
+        # Administrative diagnostics: the worker's own message.
+        **({"last_error_detail": row.get("last_error_detail")} if include_detail else {}),
+        # Live progress. A non-NULL `current_run_started_at` means a scan is in
+        # flight, which is the "is it working or stuck?" signal.
+        "is_running": row.get("current_run_started_at") is not None,
+        "run_started_at": _isoformat(row.get("current_run_started_at")),
+        "run_total": row.get("run_total"),
+        "run_downloaded": int(row.get("run_downloaded") or 0),
+        "run_processed": int(row.get("run_processed") or 0),
         "next_run_at": _isoformat(row.get("next_run_at")),
         "created_at": _isoformat(row.get("created_at")),
         "created_by": row.get("created_by"),
@@ -86,6 +129,13 @@ def list_schedules():
                            s.scan_status,
                            s.last_run_at,
                            s.last_run_status,
+                           s.last_error,
+                           s.last_error_code,
+                           s.last_error_detail,
+                           s.current_run_started_at,
+                           s.run_total,
+                           s.run_downloaded,
+                           s.run_processed,
                            s.next_run_at,
                            s.created_at,
                            s.created_by,
@@ -96,6 +146,9 @@ def list_schedules():
                     LEFT JOIN audit_headers AS a ON a.schedule_id = s.schedule_id
                     GROUP BY s.schedule_id, s.source_link, s.scan_frequency,
                              s.scan_status, s.last_run_at, s.last_run_status,
+                             s.last_error, s.last_error_code, s.last_error_detail,
+                             s.current_run_started_at, s.run_total,
+                             s.run_downloaded, s.run_processed,
                              s.next_run_at, s.created_at, s.created_by, u.username
                     ORDER BY s.created_at DESC, s.schedule_id DESC;
                     """
@@ -104,7 +157,10 @@ def list_schedules():
     except pymysql.MySQLError:
         return _db_error()
 
-    return {"data": [serialize_schedule(row) for row in rows]}, 200
+    include_detail = _is_admin()
+    return {
+        "data": [serialize_schedule(row, include_detail) for row in rows]
+    }, 200
 
 
 @bp.route("/schedules/<int:schedule_id>", methods=["DELETE"])

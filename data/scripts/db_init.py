@@ -104,6 +104,30 @@ LATE_COLUMNS = [
         "scan_status",
         "ENUM('ACTIVE', 'UNSUPPORTED', 'DISABLED') NOT NULL DEFAULT 'ACTIVE'",
     ),
+    # The worker's reason for a failure, so the UI can report what happened
+    # rather than re-deriving support from the URL. The code lets the client
+    # choose its own wording; the detail is administrator-only.
+    ("schedules", "last_error", "TEXT NULL"),
+    (
+        "schedules",
+        "last_error_code",
+        "ENUM('UNSUPPORTED_SOURCE', 'SOURCE_UNREADABLE', 'SCAN_TIMEOUT', "
+        "'SCAN_FAILED') NULL",
+    ),
+    ("schedules", "last_error_detail", "TEXT NULL"),
+    # Live progress for the run in flight. A non-NULL `current_run_started_at` is
+    # the "scanning" signal, because `last_run_status` only has outcome values.
+    ("schedules", "current_run_started_at", "DATETIME NULL"),
+    ("schedules", "run_total", "INT UNSIGNED NULL"),
+    ("schedules", "run_downloaded", "INT UNSIGNED NOT NULL DEFAULT 0"),
+    ("schedules", "run_processed", "INT UNSIGNED NOT NULL DEFAULT 0"),
+    # Existing receipts mean "downloaded and processed", which is what the old
+    # column implied; the default keeps them suppressing re-downloads.
+    (
+        "fetches",
+        "status",
+        "ENUM('DOWNLOADED', 'PROCESSED') NOT NULL DEFAULT 'PROCESSED'",
+    ),
 ]
 
 

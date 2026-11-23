@@ -7,11 +7,30 @@ from flask import Blueprint, request, session
 
 import db
 import routing
+import supported_sources
 from auth import login_required
 
 bp = Blueprint("sources", __name__)
 
 VALID_FREQUENCIES = {"HOURLY", "DAILY", "WEEKLY", "MONTHLY"}
+
+
+def _unsupported_source_response():
+    """400 telling the caller which URLs *are* accepted.
+
+    Rejecting here is what lets the UI stop guessing: a stored schedule is
+    supported by construction, so "unsupported" becomes a validation error at
+    entry instead of a badge the table has to derive.
+    """
+    examples = ", ".join(
+        supported_sources.example_url(source)
+        for source in supported_sources.SUPPORTED_SOURCES
+    )
+    return routing.error_response(
+        "UNSUPPORTED_SOURCE",
+        "No scanner supports this URL yet. Supported sources: " + examples,
+        400,
+    )
 
 
 def valid_url(url):
@@ -62,6 +81,9 @@ def add_source():
             "Source must be a valid HTTP or HTTPS URL.",
             400,
         )
+
+    if supported_sources.spider_for_url(source) is None:
+        return _unsupported_source_response()
 
     if frequency not in VALID_FREQUENCIES:
         return routing.error_response(
@@ -116,6 +138,9 @@ def add_source():
                     "created_by": user_id,
                     "source_link": source,
                     "scan_frequency": frequency,
+                    # Which scanner will collect it, so the client can confirm
+                    # rather than re-deriving support from the URL.
+                    "spider": supported_sources.spider_for_url(source),
                 }
             ]
         }, 201

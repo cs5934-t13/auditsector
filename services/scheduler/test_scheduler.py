@@ -35,8 +35,8 @@ class UnsupportedSourceTests(unittest.TestCase):
 
         return fake_scan
 
-    def _save(self, schedule_id, started_at, status, next_run_at):
-        self.saved.append((schedule_id, status, next_run_at))
+    def _save(self, schedule_id, started_at, status, next_run_at, failure=None):
+        self.saved.append((schedule_id, status, next_run_at, failure or {}))
 
     def test_unsupported_source_is_parked_not_retried(self):
         schedule = self._schedule()
@@ -53,10 +53,48 @@ class UnsupportedSourceTests(unittest.TestCase):
         self.assertEqual(failures, 1)
         self.assertEqual(schedule.scan_status, STATUS_UNSUPPORTED)
         self.assertEqual(self.saved[0][1], STATUS_UNSUPPORTED)
+        # The reason is handed on with a code, so the UI can phrase it itself.
+        self.assertEqual(self.saved[0][3]["error_code"], "SCAN_FAILED")
 
         # The decisive assertion: the same schedule is not due on the next pass,
         # unlike a transient failure which is retried in five minutes.
         self.assertEqual(get_due_schedules([schedule], self.now), [])
+
+    def test_marks_the_run_started_before_crawling(self):
+        """The UI needs a "scanning" signal before the first report lands."""
+        schedule = self._schedule()
+        begun = []
+
+        def fake_begin(schedule_id, started_at):
+            begun.append((schedule_id, started_at))
+
+        trigger_due_scans(
+            [schedule],
+            self.now,
+            lambda _s: None,
+            save_result=self._save,
+            clock=lambda: self.now,
+            begin_run=fake_begin,
+        )
+
+        self.assertEqual(begun, [(1, self.now)])
+
+    def test_begin_run_is_not_called_for_a_schedule_that_is_not_due(self):
+        schedule = Schedule(
+            1, "https://example.gov/a", "WEEKLY",
+            self.now + timedelta(days=1),
+        )
+        begun = []
+
+        trigger_due_scans(
+            [schedule],
+            self.now,
+            lambda _s: None,
+            clock=lambda: self.now,
+            begin_run=lambda sid, started: begun.append(sid),
+        )
+
+        self.assertEqual(begun, [])
 
     def test_transient_failure_still_retries(self):
         schedule = self._schedule()
@@ -73,6 +111,10 @@ class UnsupportedSourceTests(unittest.TestCase):
         self.assertEqual(schedule.scan_status, STATUS_ACTIVE)
         self.assertEqual(self.saved[0][1], "ERROR")
         self.assertEqual(self.saved[0][2], self.now + timedelta(minutes=5))
+        # A plain exception gets the generic code and its text as the detail.
+        self.assertEqual(self.saved[0][3]["error_code"], "SCAN_FAILED")
+        self.assertIn("crawl crashed", self.saved[0][3]["error_detail"])
+        self.assertNotIn("crawl crashed", self.saved[0][3]["error"])
         # Still active, so it comes back once the retry time arrives. That is
         # the intended difference from a parked schedule, which never returns.
         self.assertEqual(get_due_schedules([schedule], self.now), [])

@@ -11,7 +11,6 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from app import app
-from services.audits.support import is_supported, spider_for_url
 
 
 def _schedule_row(**overrides):
@@ -22,6 +21,13 @@ def _schedule_row(**overrides):
         "scan_status": "ACTIVE",
         "last_run_at": datetime(2026, 9, 30, 14, 25),
         "last_run_status": "SUCCESS",
+        "last_error": None,
+        "last_error_code": None,
+        "last_error_detail": None,
+        "current_run_started_at": None,
+        "run_total": None,
+        "run_downloaded": 0,
+        "run_processed": 0,
         "next_run_at": datetime(2026, 10, 7, 14, 25),
         "created_at": datetime(2026, 9, 1, 9, 0),
         "created_by": 1,
@@ -74,38 +80,6 @@ def _connection(cursor):
     return conn
 
 
-class SupportHelperTests(unittest.TestCase):
-    """The web tier's allow-list must agree with the scheduler's."""
-
-    def test_accepts_seattle_and_portland(self):
-        self.assertEqual(
-            spider_for_url("https://www.seattle.gov/city-auditor/reports"),
-            "seattle_wa",
-        )
-        self.assertEqual(
-            spider_for_url("https://www.seattle.gov/city-auditor/reports/"),
-            "seattle_wa",
-        )
-        self.assertEqual(
-            spider_for_url("https://efiles.portlandoregon.gov/record/123"),
-            "portland_or",
-        )
-
-    def test_rejects_other_urls(self):
-        for url in (
-            "https://www.portland.gov/auditor/reports",
-            "https://www.seattle.gov/city-auditor/reports1",
-            "https://efiles.portlandoregon.gov/records",
-            "ftp://www.seattle.gov/city-auditor/reports",
-            "",
-            None,
-            "not a url",
-        ):
-            with self.subTest(url=url):
-                self.assertIsNone(spider_for_url(url))
-                self.assertFalse(is_supported(url))
-
-
 class ListSchedulesTests(unittest.TestCase):
     def setUp(self):
         app.config["TESTING"] = True
@@ -130,30 +104,28 @@ class ListSchedulesTests(unittest.TestCase):
         item = response.get_json()["data"][0]
         self.assertEqual(item["schedule_id"], 7)
         self.assertEqual(item["scan_status"], "ACTIVE")
-        self.assertTrue(item["is_supported"])
+        self.assertIsNone(item["last_error"])
+        self.assertIsNone(item["last_error_code"])
+        self.assertFalse(item["is_running"])
+        self.assertEqual(item["run_processed"], 0)
         self.assertEqual(item["report_count"], 12)
         self.assertEqual(item["created_by_username"], "ferguszo")
         self.assertEqual(item["last_run_at"], "2026-09-30T14:25:00")
         self.assertEqual(item["next_run_at"], "2026-10-07T14:25:00")
 
-    def test_flags_an_unsupported_source(self):
-        self._sign_in()
-        cursor = FakeCursor(
-            rows=[_schedule_row(source_link="https://example.gov/reports")]
-        )
-
-        with patch("db.get_db_connection", return_value=_connection(cursor)):
-            response = self.client.get("/schedules")
-
-        self.assertFalse(response.get_json()["data"][0]["is_supported"])
-
-    def test_unsupported_schedule_keeps_its_parked_status(self):
+    def test_stopped_schedule_reports_a_friendly_reason(self):
+        """The sentence is written for a person, not lifted from the worker."""
         self._sign_in()
         cursor = FakeCursor(
             rows=[
                 _schedule_row(
                     scan_status="UNSUPPORTED",
                     last_run_status="ERROR",
+                    last_error_code="UNSUPPORTED_SOURCE",
+                    last_error=(
+                        "Command '['/services/fetcher/.venv/bin/python', '-m', "
+                        "'fetcher.crawl']' returned non-zero exit status 1."
+                    ),
                     source_link="https://example.gov/reports",
                 )
             ]
@@ -163,7 +135,86 @@ class ListSchedulesTests(unittest.TestCase):
             item = self.client.get("/schedules").get_json()["data"][0]
 
         self.assertEqual(item["scan_status"], "UNSUPPORTED")
-        self.assertFalse(item["is_supported"])
+        self.assertEqual(item["last_error_code"], "UNSUPPORTED_SOURCE")
+        # The raw worker text never reaches the user-facing sentence.
+        self.assertNotIn("fetcher.crawl", item["last_error"])
+        self.assertIn("not supported", item["last_error"])
+
+    def test_raw_detail_is_administrator_only(self):
+        """`last_error_detail` carries internals, so only admins receive it."""
+        self._sign_in()
+        cursor = FakeCursor(
+            rows=[
+                _schedule_row(
+                    last_run_status="ERROR",
+                    last_error_code="SCAN_FAILED",
+                    last_error_detail="Traceback: /services/fetcher/.venv/...",
+                )
+            ]
+        )
+
+        with patch("db.get_db_connection", return_value=_connection(cursor)), \
+                patch("blueprints.schedules.current_role",
+                      return_value={"user_id": 2, "user_role": "ANALYST",
+                                    "user_status": "ACTIVE"}):
+            item = self.client.get("/schedules").get_json()["data"][0]
+
+        self.assertNotIn("last_error_detail", item)
+        self.assertEqual(item["last_error_code"], "SCAN_FAILED")
+
+    def test_administrators_receive_the_raw_detail(self):
+        self._sign_in()
+        cursor = FakeCursor(
+            rows=[
+                _schedule_row(
+                    last_run_status="ERROR",
+                    last_error_code="SCAN_FAILED",
+                    last_error_detail="Traceback: /services/fetcher/.venv/...",
+                )
+            ]
+        )
+
+        with patch("db.get_db_connection", return_value=_connection(cursor)), \
+                patch("blueprints.schedules.current_role",
+                      return_value={"user_id": 1, "user_role": "ADMIN",
+                                    "user_status": "ACTIVE"}):
+            item = self.client.get("/schedules").get_json()["data"][0]
+
+        self.assertEqual(
+            item["last_error_detail"], "Traceback: /services/fetcher/.venv/..."
+        )
+
+    def test_running_scan_reports_live_progress(self):
+        self._sign_in()
+        cursor = FakeCursor(
+            rows=[
+                _schedule_row(
+                    current_run_started_at=datetime(2026, 11, 23, 15, 32, 6),
+                    run_total=209,
+                    run_downloaded=209,
+                    run_processed=41,
+                )
+            ]
+        )
+
+        with patch("db.get_db_connection", return_value=_connection(cursor)):
+            item = self.client.get("/schedules").get_json()["data"][0]
+
+        self.assertTrue(item["is_running"])
+        self.assertEqual(item["run_started_at"], "2026-11-23T15:32:06")
+        self.assertEqual(item["run_total"], 209)
+        self.assertEqual(item["run_downloaded"], 209)
+        self.assertEqual(item["run_processed"], 41)
+
+    def test_response_no_longer_derives_support(self):
+        """`is_supported` was removed; the client reads `scan_status`."""
+        self._sign_in()
+        cursor = FakeCursor(rows=[_schedule_row()])
+
+        with patch("db.get_db_connection", return_value=_connection(cursor)):
+            item = self.client.get("/schedules").get_json()["data"][0]
+
+        self.assertNotIn("is_supported", item)
 
 
 class DeleteScheduleTests(unittest.TestCase):

@@ -7,6 +7,18 @@ one. These endpoints close a gap where schedules were write-only: `POST /sources
 created them, but nothing could read them back, so the UI could not show what was
 scheduled or why a source produced no reports.
 
+## Time zones
+
+Every timestamp in this response is UTC, sent as `YYYY-MM-DDTHH:MM:SS` with no
+suffix. The database runs with `time_zone = SYSTEM` on a UTC container and every
+writer uses `UTC_TIMESTAMP()`, so the values are unambiguous — but the absence of
+a `Z` means a client must add it before formatting.
+
+The web client treats them as instants and converts to the viewer's zone, so a
+scan at `16:15` UTC reads `10:15 AM` to someone in Chicago. Calendar dates
+elsewhere in the API (`audit_date`) are **not** instants and must stay pinned to
+UTC; converting those shifts the day for anyone west of Greenwich.
+
 ## Authentication
 
 Both endpoints require an authenticated Flask session.
@@ -50,9 +62,49 @@ deliberately and are expected to number in the tens.
 | `source_link` | string | The collection URL being scanned. |
 | `scan_frequency` | string | `HOURLY`, `DAILY`, `WEEKLY`, `MONTHLY`, or `ARCHIVE`. |
 | `scan_status` | string | `ACTIVE`, `UNSUPPORTED`, or `DISABLED`. |
-| `is_supported` | boolean | Whether any spider can collect this URL. |
-| `last_run_at` | string or `null` | Start of the last run, `YYYY-MM-DDTHH:MM:SS` UTC. |
+| `last_run_at` | string or `null` | Start of the last run, `YYYY-MM-DDTHH:MM:SS` **UTC**. |
 | `last_run_status` | string or `null` | `SUCCESS` or `ERROR`. |
+| `last_error_code` | string or `null` | Stable reason code: `UNSUPPORTED_SOURCE`, `SOURCE_UNREADABLE`, `SCAN_TIMEOUT`, or `SCAN_FAILED`. |
+| `last_error` | string or `null` | A short sentence for end users, composed from `last_error_code`. `null` after a success. |
+| `last_error_detail` | string or `null` | **Administrators only.** The worker's raw message, for diagnostics. Absent for other roles. |
+| `is_running` | boolean | True while a scan is in flight. |
+| `run_started_at` | string or `null` | When the in-flight run began; `null` when idle. |
+| `run_total` | number or `null` | Reports the source listed, once its index is parsed. |
+| `run_downloaded` | number | PDFs fetched in the current run. |
+| `run_processed` | number | Reports committed in the current run. |
+
+### Live progress
+
+While a scan runs, `is_running` is true and the four `run_*` fields describe it.
+Three phases are possible, in order:
+
+1. **Finding reports** — `run_total` is `null` because the collection page has
+   not been parsed yet. The client should show an indeterminate bar.
+2. **Downloading** — `run_total` is known; `run_downloaded` climbs.
+3. **Processing** — `run_processed` climbs toward `run_total`.
+
+All four are cleared when the run ends, so a stale progress bar never outlives
+its run. Clients should poll about every 15 seconds **only while `is_running` is
+true** for any schedule.
+
+Live counters and the raw `last_error_detail` are administrator diagnostics; the
+`is_running` flag and the derived sentence are for every signed-in user.
+
+### Failure reporting
+
+A failure is described three ways, for three audiences:
+
+- `last_error_code` — stable and switchable. Clients can vary behaviour without
+  parsing prose.
+- `last_error` — a sentence written for a person, e.g. *"We couldn't read reports
+  from this source. It will try again shortly."* It states the consequence, not
+  the subprocess.
+- `last_error_detail` — the worker's own message, which may name internal paths.
+  Returned only when the session's **current** role is `ADMIN`.
+
+The raw worker text is never used as the user-facing sentence. Previously it was,
+which surfaced strings like `Command '['/services/fetcher/.venv/bin/python', ...]'
+returned non-zero exit status 1`.
 | `next_run_at` | string or `null` | When the worker will scan next. |
 | `created_at` | string or `null` | When the schedule was registered. |
 | `created_by` | number or `null` | `users.user_id` of the creator. |
@@ -61,14 +113,18 @@ deliberately and are expected to number in the tens.
 
 ### Scan status
 
-`ACTIVE` schedules are scanned. `UNSUPPORTED` means no spider can handle the
-source URL, so the scheduler has **parked** it: it is not retried, because
-retrying a permanently unsupported URL only floods the log. `DISABLED` is reserved
-for an operator pause.
+`ACTIVE` schedules are scanned. `UNSUPPORTED` means the scheduler **parked** it:
+no spider can handle the source, so it is not retried. `DISABLED` is reserved for
+an operator pause.
 
-`is_supported` is derived from the same allow-list the scheduler uses. A schedule
-can be `ACTIVE` with `is_supported: false` in older data; the client treats the
-flag as authoritative and shows "Not supported".
+**This endpoint does not report whether a URL is supported.** `POST /sources`
+refuses unsupported sources, so a stored schedule is scannable by construction;
+there is no allow-list to re-evaluate here. The only way a stored schedule becomes
+unsupported is a source being dropped from `supported_sources.py` later, and that
+surfaces as `scan_status: "UNSUPPORTED"` with the worker's reason in `last_error`.
+
+Clients should key their status display off `scan_status` and show `last_error`
+when present, rather than deriving support from the URL.
 
 ### Error Responses
 
@@ -148,12 +204,29 @@ reports is a separate, destructive operation and is not performed automatically.
 
 ## Supported sources
 
-Only these URLs can be scanned:
+The allow-list is `supported_sources.py` at the repository root, shared with the
+scheduler so the API and the worker cannot disagree. It currently covers fourteen
+sources; see that file for the authoritative list and matching rules. A summary:
 
 | Source | URL |
 |---|---|
 | Seattle City Auditor | `https://www.seattle.gov/city-auditor/reports` |
+| Portland — Audit Reports Online | `https://www.portland.gov/auditor/audit-services/about-us/audit-reports-online` |
+| Portland — Audit Services | `https://www.portland.gov/auditor/audit-services` |
 | Portland eFiles records | `https://efiles.portlandoregon.gov/record` (and `/record/...`) |
+| Tulsa Internal Audit | `https://www.cityoftulsa.org/government/internal-audit-reports` |
+| Clark County WA Auditor | `https://clark.wa.gov/auditor/auditor-documents` |
+| Denver Auditor's Office | `…/Auditors-Office/Audit-Services/Audit-Reports` |
+| King County WA Auditor | `…/auditors-office/reports-papers` |
+| Arizona Auditor General — Maricopa | `https://www.azauditor.gov/counties/maricopa-county` |
+| Sacramento City Auditor | `https://www.cityofsacramento.gov/auditor` |
+| San Diego City Auditor | `https://www.sandiego.gov/auditor/reports` |
+| San Francisco City Services Auditor | `https://www.sf.gov/information--city-services-auditor` |
+| San José City Auditor | `https://www.sanjoseca.gov/your-government/appointees/city-auditor/audit-reports-4828` |
+| Virginia Beach City Auditor | `https://auditor.virginiabeach.gov/` |
+
+Adding a source is one entry in `supported_sources.py`; both the worker and the UI
+pick it up, so the "Not supported" badge stays accurate.
 
 Registering any other URL succeeds but parks the schedule as `UNSUPPORTED` on its
 first run.

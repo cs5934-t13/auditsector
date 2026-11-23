@@ -33,14 +33,34 @@ display casing instead of guessing it from the URL.
 |---|---|---|---|---|
 | `page` | integer | No | `1` | Page number to return. Must be 1 or greater. |
 | `limit` | integer | No | `20` | Number of reports per page. Must be between 1 and 100. |
+| `sort` | enum | No | `audit_date` | Column to order by: `title`, `risk_level`, `audit_date`, or `created_at`. |
+| `order` | enum | No | `desc` | `asc` or `desc`, case-insensitive. |
+
+Sorting is server-side because the page is paginated here: ordering the rows a
+single page happens to hold would reorder 20 of N reports and look broken.
+
+An unrecognised `sort` or `order` does **not** return `400` — the request still
+has valid content, so it falls back to the default and the response reports what
+was actually applied in `sort`. An unknown `sort` also discards `order`, since
+honouring a direction for a column the caller did not name is misleading.
 
 ## Sort Order
 
-Results are ordered by:
+Default ordering:
 
 1. `audit_date` descending, so the newest report appears first.
-2. `audit_id` descending when two reports share a date. With UUID identifiers
-   this is a deterministic tiebreak, not insertion order.
+2. `audit_id` in the same direction when two reports share a date. With UUID
+   identifiers this is a deterministic tiebreak, not insertion order.
+
+`risk_level` sorts by **severity**, not alphabetically, so `HIGH` ranks above
+`LOW`. The database ENUM order defines it.
+
+The response always includes a `sort` object describing the ordering applied,
+which may differ from the request:
+
+```json
+"sort": { "sort": "audit_date", "order": "desc" }
+```
 
 ## Successful Response
 

@@ -46,6 +46,15 @@ const response = await fetch(
 const result = await response.json();
 ```
 
+### Supported Sources
+
+The URL must be one a scanner can collect. `supported_sources.py` at the
+repository root is the authoritative list; the endpoint refuses anything else with
+`400 UNSUPPORTED_SOURCE` and names the accepted URLs in the message.
+
+Rejecting here is deliberate: it means a stored schedule is always scannable, so
+`GET /schedules` never has to re-derive support from the URL.
+
 ## Successful Response
 
 **Status:** `201 Created`
@@ -57,13 +66,17 @@ const result = await response.json();
       "schedule_id": 1,
       "created_by": 3,
       "source_link": "https://example.com/audits",
-      "scan_frequency": "WEEKLY"
+      "scan_frequency": "WEEKLY",
+      "spider": "seattle_wa"
     }
   ]
 }
 ```
 
 `created_by` is the database ID of the signed-in user.
+
+`spider` names the scanner that will collect it, so the client can confirm the
+source is understood without checking its own copy of the allow-list.
 
 This response confirms the schedule was saved. It does not confirm
 that a scan has run.

@@ -25,7 +25,7 @@ It preserves IDs/records, refuses orphan reports, duplicate receipts, or unresol
 legacy download records, and seeds
 missing predefined tags. MySQL DDL is not transactional: keep the backup.
 
-Build: `podman build -t services services`. The worker needs MYSQL_ROOT_PASSWORD,
+Build: `podman build -f services/Containerfile -t services .`. The worker needs MYSQL_ROOT_PASSWORD,
 LLM_API_URL, and LLM_API_KEY from the existing Podman secrets configuration.
 `--once` runs one pass; `--poll-seconds` changes polling, not saved frequencies.
 Run unit tests in the image with `uv run --no-sync python -m unittest discover

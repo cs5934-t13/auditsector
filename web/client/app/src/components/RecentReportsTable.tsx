@@ -1,5 +1,9 @@
 import Box from '@mui/material/Box';
-import { DataGrid, type GridPaginationModel } from '@mui/x-data-grid';
+import {
+  DataGrid,
+  type GridPaginationModel,
+  type GridSortModel,
+} from '@mui/x-data-grid';
 import type { RecentAuditRecord } from '../content/recentReports';
 import { recentAuditColumns } from './recentAuditColumns';
 
@@ -12,12 +16,21 @@ function getRowHeight(): 'auto' {
 }
 
 interface RecentReportsTableProps {
-  /** Records supplied in newest-first order by the caller. */
+  /** Records supplied in the server's order by the caller. */
   rows: readonly RecentAuditRecord[];
   rowCount: number;
   loading: boolean;
   paginationModel: GridPaginationModel;
   onPaginationModelChange: (model: GridPaginationModel) => void;
+  /**
+   * Server-side sorting. Omit both props to keep the grid unsorted, which is
+   * what the homepage panel does.
+   *
+   * Sorting has to happen on the server here: the grid only holds one page, so
+   * sorting client-side would reorder 20 rows and look broken.
+   */
+  sortModel?: GridSortModel;
+  onSortModelChange?: (model: GridSortModel) => void;
 }
 
 /** Read-only report table. Loading records is the caller's responsibility. */
@@ -27,7 +40,10 @@ export default function RecentReportsTable({
   loading,
   paginationModel,
   onPaginationModelChange,
+  sortModel,
+  onSortModelChange,
 }: RecentReportsTableProps) {
+  const sortable = onSortModelChange !== undefined;
   return (
     <Box sx={{ height: 420, width: '100%', minWidth: 0 }}>
       <DataGrid<RecentAuditRecord>
@@ -36,7 +52,12 @@ export default function RecentReportsTable({
         getRowId={getAuditId}
         getRowHeight={getRowHeight}
         disableRowSelectionOnClick
-        disableColumnSorting
+        // Sorting is server-driven when a handler is supplied; otherwise the
+        // grid would offer a control that cannot work.
+        sortingMode={sortable ? 'server' : 'client'}
+        disableColumnSorting={!sortable}
+        sortModel={sortable ? (sortModel ?? []) : undefined}
+        onSortModelChange={sortable ? onSortModelChange : undefined}
         disableColumnMenu
         paginationMode="server"
         paginationModel={paginationModel}

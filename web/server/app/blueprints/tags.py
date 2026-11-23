@@ -6,7 +6,7 @@ Transport only — the SQL and slug rules live in `services/tags/tags.py`.
 from urllib.parse import unquote
 
 import pymysql
-from flask import Blueprint
+from flask import Blueprint, request
 
 import routing
 from auth import login_required
@@ -62,9 +62,16 @@ def get_tag_audits(tag):
             400,
         )
 
+    # A bad `sort`/`order` falls back to the default instead of a 400: the page
+    # still has valid content, and the response echoes what was applied so the
+    # client can correct its header state.
     try:
-        resolved, rows, total_items, tags_by_audit = tag_service.audit_page(
-            tag, limit, (page - 1) * limit
+        resolved, rows, total_items, tags_by_audit, applied = tag_service.audit_page(
+            tag,
+            limit,
+            (page - 1) * limit,
+            sort=request.args.get("sort"),
+            order=request.args.get("order"),
         )
     except pymysql.MySQLError:
         return routing.error_response(
@@ -94,4 +101,7 @@ def get_tag_audits(tag):
             "boundary": resolved.get("boundary"),
         },
         "pagination": routing.paginate(total_items, page, limit),
+        # The ordering actually applied, so the client's sort indicators always
+        # match what the server returned.
+        "sort": applied,
     }, 200

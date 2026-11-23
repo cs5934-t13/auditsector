@@ -18,16 +18,36 @@ export function formatDate(isoDate: string): string {
 }
 
 /**
- * Formats a stored `YYYY-MM-DDTHH:MM:SS` datetime for display.
+ * Formats a stored `YYYY-MM-DDTHH:MM:SS` **instant** in the viewer's time zone.
  *
- * The server sends these without a timezone, so they are treated as stored
- * values rather than converted to the viewer's local zone — the same rule the
- * API modules use to validate them. Time is shown to the minute, which is the
- * precision a human needs from a scan timestamp.
+ * The server stores and sends these as UTC without a suffix (the database runs
+ * with `time_zone = SYSTEM` on a UTC container, and every writer uses
+ * `UTC_TIMESTAMP()`). Appending `Z` states that, so `toLocaleString` converts
+ * into the browser's zone instead of printing UTC as though it were local.
+ *
+ * Use this for moments in time — when a scan ran, when a row was inserted.
+ * Do **not** use it for calendar dates such as `audit_date`, which describe a
+ * day rather than an instant: converting those shifts the day for anyone west
+ * of Greenwich. `formatDate`/`formatStoredDate` pin those to UTC for that reason.
  */
 export function formatStoredDateTime(value: string): string {
+  return formatInstant(value, { withZone: true });
+}
+
+/**
+ * Compact variant for narrow table cells: local time, no zone abbreviation.
+ *
+ * A localized string with the zone name is too wide for a fixed-width grid
+ * column, and the viewer's own zone is implied there.
+ */
+export function formatStoredDateTimeShort(value: string): string {
+  return formatInstant(value, { withZone: false });
+}
+
+function formatInstant(value: string, { withZone }: { withZone: boolean }): string {
   const parsed = new Date(`${value}Z`);
   if (Number.isNaN(parsed.getTime())) {
+    // Leave an unexpected value visible rather than silently showing a wrong time.
     return value;
   }
   return parsed.toLocaleString('en-US', {
@@ -36,7 +56,7 @@ export function formatStoredDateTime(value: string): string {
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-    timeZone: 'UTC',
+    ...(withZone ? { timeZoneName: 'short' as const } : {}),
   });
 }
 

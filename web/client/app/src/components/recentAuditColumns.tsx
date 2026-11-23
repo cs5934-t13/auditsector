@@ -4,18 +4,24 @@ import { Link as RouterLink } from 'react-router-dom';
 import RiskLevelChip from './RiskLevelChip';
 import TagLinks from './TagLinks';
 import type { RecentAuditRecord } from '../content/recentReports';
+import { formatStoredDate, formatStoredDateTimeShort } from '../utils/formatDate';
 import { auditReportPath } from '../routes';
 import { BODY_LINK_SX } from '../theme';
 
 /**
- * Renders a stored `YYYY-MM-DDTHH:MM:SS` value as a compact grid cell.
+ * Compact cell renderers for the two date columns, which are different kinds.
  *
- * Kept in the raw stored form (space instead of `T`) rather than localized,
- * because these columns are narrow and scanning a fixed-width timestamp is
- * easier than reading a long localized string.
+ * `created_at` is an instant (when the fetcher inserted the row), so it is
+ * converted into the viewer's zone. `audit_date` is a calendar date — the day
+ * the report was published — so it stays pinned to UTC; converting it would
+ * shift the day backwards for anyone west of Greenwich.
  */
-function formatGridDateTime(value: string): string {
-  return value.replace('T', ' ');
+function formatAddedDateTime(value: string): string {
+  return formatStoredDateTimeShort(value);
+}
+
+function formatPublishedDate(value: string): string {
+  return formatStoredDate(value);
 }
 
 /**
@@ -60,15 +66,15 @@ export const recentAuditColumns: GridColDef<RecentAuditRecord>[] = [
   },
   {
     field: 'audit_date',
-    headerName: 'Audit date',
-    width: 190,
-    valueFormatter: (value: string) => formatGridDateTime(value),
+    headerName: 'Published',
+    width: 160,
+    valueFormatter: (value: string) => formatPublishedDate(value),
   },
   {
     field: 'created_at',
-    headerName: 'Added',
+    headerName: 'Added (your time)',
     width: 190,
-    valueFormatter: (value: string) => formatGridDateTime(value),
+    valueFormatter: (value: string) => formatAddedDateTime(value),
   },
 ];
 
