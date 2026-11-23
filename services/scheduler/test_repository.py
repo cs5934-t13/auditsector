@@ -4,10 +4,72 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
-from services.scheduler.repository import load_schedules, save_next_run
+from services.scheduler.repository import load_schedules, save_next_run, save_run
 
 class RepositoryTests(unittest.TestCase):
-    
+
+    def test_save_run_records_a_successful_run(self):
+        connection = MagicMock()
+        cursor = connection.cursor.return_value.__enter__.return_value
+        started = datetime(2026, 10, 25, 12, 0, tzinfo=timezone.utc)
+        next_run = datetime(2026, 10, 26, 12, 0, tzinfo=timezone.utc)
+
+        save_run(connection, 7, started, "SUCCESS", next_run)
+
+        sql, parameters = cursor.execute.call_args.args
+        # A normal run must not touch scan_status: COALESCE keeps the column.
+        self.assertIn("COALESCE(%s, scan_status)", " ".join(sql.split()))
+        self.assertEqual(
+            parameters,
+            (
+                datetime(2026, 10, 25, 12, 0),
+                "SUCCESS",
+                None,
+                datetime(2026, 10, 26, 12, 0),
+                7,
+            ),
+        )
+        connection.commit.assert_called_once()
+
+    def test_save_run_parks_an_unsupported_source(self):
+        connection = MagicMock()
+        cursor = connection.cursor.return_value.__enter__.return_value
+        started = datetime(2026, 10, 25, 12, 0, tzinfo=timezone.utc)
+        parked_until = datetime(2027, 10, 25, 12, 0, tzinfo=timezone.utc)
+
+        save_run(connection, 7, started, "UNSUPPORTED", parked_until)
+
+        parameters = cursor.execute.call_args.args[1]
+        # UNSUPPORTED is not a run outcome, so last_run_status records ERROR
+        # while scan_status carries the parked state.
+        self.assertEqual(parameters[1], "ERROR")
+        self.assertEqual(parameters[2], "UNSUPPORTED")
+        connection.commit.assert_called_once()
+
+    def test_save_run_rolls_back_on_database_error(self):
+        connection = MagicMock()
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.execute.side_effect = RuntimeError("Database unavailable")
+        started = datetime(2026, 10, 25, 12, 0, tzinfo=timezone.utc)
+
+        with self.assertRaisesRegex(RuntimeError, "Database unavailable"):
+            save_run(connection, 7, started, "SUCCESS", started)
+
+        connection.rollback.assert_called_once()
+        connection.commit.assert_not_called()
+
+    def test_save_run_rejects_a_naive_time(self):
+        connection = MagicMock()
+
+        with self.assertRaisesRegex(ValueError, "timezone"):
+            save_run(
+                connection,
+                7,
+                datetime(2026, 10, 25, 12, 0),
+                "SUCCESS",
+                datetime(2026, 10, 26, 12, 0),
+            )
+
     def test_save_rolls_back_on_database_error(self):
         connection = MagicMock()
         cursor = connection.cursor.return_value.__enter__.return_value

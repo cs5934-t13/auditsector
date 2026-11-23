@@ -28,6 +28,7 @@ import db
 import routing
 from blueprints import audits as audits_bp
 from blueprints import auth as auth_bp
+from blueprints import schedules as schedules_bp
 from blueprints import settings as settings_bp
 from blueprints import sources as sources_bp
 from blueprints import tags as tags_bp
@@ -98,7 +99,15 @@ def create_app():
         response.content_type = "application/json"
         return response
 
-    for module in (auth_bp, tags_bp, audits_bp, users_bp, settings_bp, sources_bp):
+    for module in (
+        auth_bp,
+        tags_bp,
+        audits_bp,
+        schedules_bp,
+        users_bp,
+        settings_bp,
+        sources_bp,
+    ):
         application.register_blueprint(module.bp)
 
     return application
