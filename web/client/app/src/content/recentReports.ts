@@ -7,4 +7,13 @@ export interface RecentAuditRecord {
   audit_date: string;
   /** Record creation time, used to determine recency. */
   created_at: string;
+  /**
+   * Classified risk level, mirroring `audit_headers.risk_level`.
+   *
+   * `null` means the report has not been classified yet, which the table shows
+   * as "Not rated" rather than hiding the row.
+   */
+  risk_level: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null;
+  /** Names of the tags attached to the report, ordered by name. */
+  tags: readonly string[];
 }

@@ -18,7 +18,7 @@ TEST_PASSWORD = "abc123"  # plaintext of the hash seeded in init_data.sql
 EXPECTED_TABLES = {
     "audit_headers", "tags", "audit_tags",
     "schedules", 
-    "users"
+    "users", "app_settings"
 }
 
 
@@ -43,6 +43,23 @@ def test_users_columns(cur):
     )
     cols = {r["COLUMN_NAME"] for r in cur.fetchall()}
     for col in EXPECTED_USER_COLS:
+        assert col in cols
+
+
+EXPECTED_SETTINGS_COLS = {
+    "settings_id", "organization_name", "password_reset_message",
+    "general_help", "contact", "updated_at",
+}
+
+
+def test_settings_columns(cur):
+    """`contact` is read by the API and rendered in the footer, so it must exist."""
+    cur.execute(
+        "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'app_settings'"
+    )
+    cols = {r["COLUMN_NAME"] for r in cur.fetchall()}
+    for col in EXPECTED_SETTINGS_COLS:
         assert col in cols
 
 
@@ -85,19 +102,24 @@ def test_seed_tags_present(cur):
 
 def test_tag_names_are_unique(cur):
     cur.execute("SELECT name, COUNT(*) AS n FROM tags GROUP BY name HAVING n > 1")
-    assert cur.fetchall() == []
+    # fetchall() returns a tuple; compare against an empty sequence rather
+    # than a list, which never compares equal to a tuple.
+    assert cur.fetchall() == ()
 
 
 def test_duplicate_user_rejected(cur):
+    # The dummy-data seed already contains `jsmith`; use a unique username so
+    # this test does not depend on which seed rows happen to be loaded.
+    username = "duplicate_user_test"
     cur.execute("""
         INSERT INTO users (first_name, last_name, email, username, password_hash, user_role, user_status) 
-            VALUES ('John', 'Smith', 'jsmith@vt.edu', 'jsmith', 'abc123', 'ANALYST', 'ACTIVE');
-    """)
+            VALUES ('John', 'Smith', 'jsmith@vt.edu', %s, 'abc123', 'ANALYST', 'ACTIVE');
+    """, (username,))
     with pytest.raises(pymysql.err.IntegrityError):
         cur.execute("""
                 INSERT INTO users (first_name, last_name, email, username, password_hash, user_role, user_status) 
-                    VALUES ('John', 'Smith', 'jsmith@vt.edu', 'jsmith', 'abc123', 'ANALYST', 'ACTIVE');
-        """)
+                    VALUES ('John', 'Smith', 'jsmith@vt.edu', %s, 'abc123', 'ANALYST', 'ACTIVE');
+        """, (username,))
 
 
 def test_valid_authorization():

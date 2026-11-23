@@ -147,13 +147,17 @@ The server will not start without `FLASK_SECRET_KEY` and `MYSQL_ROOT_PASSWORD`.
 ### Stopping and resetting
 
 ```
-podman kube play --down pod.yaml            # stop and remove the pod
-podman volume rm 82a2ef700bc37dcb3ea3e2778cede5dd8edbf0d24c6f386b04e0215170d61187  # drop the MySQL data
-podman secret rm mysql_root_password flask_secret_key                            # remove the secrets
+podman kube play --down pod.yaml      # stop and remove the pod
+podman pod rm -f web                 # clear containers not declared in pod.yaml
+podman volume rm db-volume           # drop the MySQL data
+podman secret rm mysql_root_password flask_secret_key  # remove the secrets
 ```
 
 The database lives in a persistent volume, so `--replace` alone keeps existing
 data. Remove the volume when you want a clean schema and freshly seeded rows.
+A stale volume is the usual cause of `Unknown column` errors in the API or in the
+database tests, because the `init_*` scripts only create missing tables and never
+add columns to an existing one.
 
 > Do not mix this flow with `podman pod create` / `podman run --pod web`. Those
 > commands add unmanaged containers to the same pod, which then contend for the

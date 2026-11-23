@@ -13,6 +13,7 @@ import { ROUTES } from './routes';
 // initial bundle this way.
 const HomePage = lazy(() => import('./pages/HomePage'));
 const AuditReportsPage = lazy(() => import('./pages/AuditReportsPage'));
+const AuditReportPage = lazy(() => import('./pages/AuditReportPage'));
 const TagsPage = lazy(() => import('./pages/TagsPage'));
 const TagPage = lazy(() => import('./pages/TagPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
@@ -109,6 +110,14 @@ export default function AppRoutes() {
             element={
               <RequireAuth>
                 <AuditReportsPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path={ROUTES.auditReport}
+            element={
+              <RequireAuth>
+                <AuditReportPage />
               </RequireAuth>
             }
           />

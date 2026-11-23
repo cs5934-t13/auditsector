@@ -1,39 +1,118 @@
-import { useParams } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { Link as RouterLink, useParams } from 'react-router-dom';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Breadcrumbs from '@mui/material/Breadcrumbs';
 import Button from '@mui/material/Button';
 import Container from '@mui/material/Container';
+import Skeleton from '@mui/material/Skeleton';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import type { GridPaginationModel } from '@mui/x-data-grid';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { Link as RouterLink } from 'react-router-dom';
-import AuditReportsTable from '../components/AuditReportsTable';
+import RecentReportsTable from '../components/RecentReportsTable';
 import PageSection from '../components/PageSection';
+import Prose from '../components/Prose';
 import SectionPanel from '../components/SectionPanel';
-import {
-  auditsForTag,
-  findTagName,
-  listTags,
-} from '../content/recentAudits';
+import TagRuleText from '../components/TagRuleText';
+import { fetchTagAudits, fetchTags, TagsApiError, type TagSummary } from '../api/tags';
+import type { RecentAuditRecord } from '../content/recentReports';
 import { ROUTES, tagPath } from '../routes';
 import { BODY_LINK_SX } from '../theme';
+
+type LoadResult =
+  | {
+      key: string;
+      rows: RecentAuditRecord[];
+      tagName: string;
+      description: string | null;
+      boundary: string | null;
+      total: number;
+      error?: never;
+    }
+  | { key: string; error: TagsApiError; rows?: never };
 
 /**
  * Tag detail page: every audit report carrying one tag.
  *
- * The URL is `/tag/<tagname>`, where `<tagname>` is the slug from `tagSlug`.
- * `findTagName` maps the slug back to the tag's display casing, so the page
- * heading shows "Information Technology" while the URL stays lower-case.
+ * Data comes from `GET /api/tags/<tag>/audits`, which resolves the URL segment
+ * (slug or display name) to a real tag and returns its canonical casing. That
+ * means the heading shows "Information Technology" while the URL stays
+ * `information-technology`, and a typo produces a not-found state rather than
+ * an empty list that looks like "no reports".
  */
 export default function TagPage() {
   const { tagname = '' } = useParams<{ tagname: string }>();
-  const tagName = findTagName(tagname);
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize: 20,
+  });
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<LoadResult | null>(null);
 
-  if (!tagName) {
+  const { page, pageSize } = paginationModel;
+  const requestKey = `${tagname}:${page}:${pageSize}:${attempt}`;
+  const current = result?.key === requestKey ? result : null;
+  const loading = current === null;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let ignore = false;
+
+    fetchTagAudits(tagname, { page: page + 1, limit: pageSize }, { signal: controller.signal })
+      .then((response) => {
+        if (ignore) return;
+        setResult({
+          key: requestKey,
+          rows: response.data,
+          tagName: response.tag.name,
+          description: response.tag.description,
+          boundary: response.tag.boundary,
+          total: response.pagination.total_items,
+        });
+        // A page can become empty after data changes; step back to the last
+        // page that still has rows rather than showing a blank table.
+        const lastPage = Math.max(0, response.pagination.total_pages - 1);
+        if (page > lastPage) {
+          setPaginationModel({ page: lastPage, pageSize });
+        }
+      })
+      .catch((failure: unknown) => {
+        if (ignore || controller.signal.aborted) return;
+        setResult({
+          key: requestKey,
+          error:
+            failure instanceof TagsApiError
+              ? failure
+              : new TagsApiError('Unable to load this tag. Please try again.'),
+        });
+      });
+
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, [tagname, page, pageSize, requestKey]);
+
+  const retry = useCallback(() => {
+    setResult(null);
+    setAttempt((value) => value + 1);
+  }, []);
+
+  function changePage(next: GridPaginationModel) {
+    const nextPage = next.pageSize === pageSize ? next.page : 0;
+    if (page === nextPage && pageSize === next.pageSize) return;
+    setPaginationModel({ page: nextPage, pageSize: next.pageSize });
+  }
+
+  // A tag that does not exist is a page-level state, not a table error.
+  if (current?.error?.notFound) {
     return <UnknownTag segment={tagname} />;
   }
 
-  const rows = auditsForTag(tagName);
+  const tagName = current?.rows ? current.tagName : tagNameFromSegment(tagname);
+  const rows = current?.rows ?? [];
+  const total = current?.rows ? current.total : 0;
 
   return (
     <Container maxWidth="lg">
@@ -55,24 +134,71 @@ export default function TagPage() {
         <Typography id="tag-heading" variant="h3" component="h1" gutterBottom>
           {tagName}
         </Typography>
-        {rows.length > 0 && (
-          <Typography
-            variant="body1"
-            color="text.secondary"
-            sx={{ mb: 3, maxWidth: 720 }}
-          >
-            {rows.length === 1
-              ? '1 audit report carries this tag.'
-              : `${rows.length} audit reports carry this tag.`}
-          </Typography>
+
+        {/*
+          The tagging rule sits directly under the heading, before the count and
+          the table: it explains what the list below is showing. Omitted while
+          loading so the skeleton does not jump, and omitted entirely for a tag
+          with no rule text.
+        */}
+        {current?.rows && (
+          <TagRuleText
+            description={current.description}
+            boundary={current.boundary}
+            sx={{ mb: 3 }}
+          />
         )}
 
-        <AuditReportsTable
-          rows={rows}
-          ariaLabel={`Audit reports tagged ${tagName}`}
-          emptyMessage="No audit reports carry this tag yet."
-          sx={{ mt: rows.length > 0 ? 0 : 3 }}
-        />
+        <Box aria-busy={loading}>
+          {loading ? (
+            <Skeleton
+              variant="text"
+              width={260}
+              role="status"
+              aria-label="Loading audits for this tag"
+              sx={{ mb: 3 }}
+            />
+          ) : (
+            total > 0 && (
+              <Typography
+                variant="body1"
+                color="text.secondary"
+                sx={{ mb: 3, maxWidth: 720 }}
+              >
+                {total === 1
+                  ? '1 audit report carries this tag.'
+                  : `${total} audit reports carry this tag.`}
+              </Typography>
+            )
+          )}
+
+          {current?.error ? (
+            <SectionPanel>
+              <Stack spacing={2} alignItems="flex-start">
+                <Alert severity="error">{current.error.message}</Alert>
+                {current.error.status === 401 ? (
+                  <Button component={RouterLink} to={ROUTES.landing}>
+                    Sign in again
+                  </Button>
+                ) : (
+                  <Button onClick={retry}>Retry</Button>
+                )}
+              </Stack>
+            </SectionPanel>
+          ) : loading ? (
+            <SectionPanel>
+              <Skeleton variant="rounded" height={220} />
+            </SectionPanel>
+          ) : (
+            <RecentReportsTable
+              rows={rows}
+              rowCount={total}
+              loading={false}
+              paginationModel={paginationModel}
+              onPaginationModelChange={changePage}
+            />
+          )}
+        </Box>
 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 3 }}>
           <Button
@@ -93,16 +219,48 @@ export default function TagPage() {
 }
 
 /**
+ * Display casing for a slug while the request is in flight.
+ *
+ * Only used for the breadcrumb and heading before the server answers; the
+ * response replaces it with the tag's real name. It deliberately does not try
+ * to guess capitalization beyond capitalizing word starts.
+ */
+function tagNameFromSegment(segment: string): string {
+  const words = decodeURIComponent(segment).replace(/[-_]+/g, ' ').trim().split(/\s+/);
+  return words
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+/**
  * Fallback for a URL that does not match any known tag.
  *
- * Suggested tags are real destinations, so a mistyped or stale link still leads
- * somewhere useful instead of dead-ending. The list includes tags with no
- * reports yet, because those are still valid destinations.
+ * Suggests the live tag list, because every tag is a real destination and a
+ * mistyped or stale link should still lead somewhere useful. Tags with no
+ * reports are included: they are valid pages with an empty state.
  */
 function UnknownTag({ segment }: { segment: string }) {
-  // Every known tag is a valid destination, so offer the whole index rather
-  // than truncating a list that may hide the intended tag.
-  const suggestions = listTags();
+  const [tags, setTags] = useState<TagSummary[] | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let ignore = false;
+
+    fetchTags({ signal: controller.signal })
+      .then((list) => {
+        if (!ignore) setTags(list);
+      })
+      // The suggestion list is an enhancement; a failure just omits it.
+      .catch(() => {
+        if (!ignore) setTags([]);
+      });
+
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, []);
 
   return (
     <Container maxWidth="lg">
@@ -116,13 +274,20 @@ function UnknownTag({ segment }: { segment: string }) {
             been renamed, or the link may be mistyped.
           </Typography>
 
-          {suggestions.length > 0 && (
+          {tags === null ? (
+            <Skeleton
+              variant="text"
+              width={220}
+              role="status"
+              aria-label="Loading tags"
+            />
+          ) : tags.length > 0 ? (
             <>
               <Typography variant="subtitle2" component="h2" gutterBottom>
                 Browse a tag
               </Typography>
               <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-                {suggestions.map(({ name }) => (
+                {tags.map(({ name }) => (
                   <Typography
                     key={name}
                     component="li"
@@ -136,6 +301,8 @@ function UnknownTag({ segment }: { segment: string }) {
                 ))}
               </Box>
             </>
+          ) : (
+            <Prose>No tags exist yet. Tags appear once reports are tagged.</Prose>
           )}
 
           <Button

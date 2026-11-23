@@ -24,6 +24,8 @@ os.environ.setdefault("MYSQL_ROOT_PASSWORD", "test")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 import app as app_module  # noqa: E402
+import auth as auth_module  # noqa: E402
+from blueprints import users as users_blueprint  # noqa: E402
 
 
 def make_row(**overrides):
@@ -176,10 +178,11 @@ ANALYST = make_row(
 def client(monkeypatch):
     fake = FakeUsers([ADMIN, ANALYST])
     fake.passwords = {1: "admin-pw", 2: "analyst-pw"}
-    monkeypatch.setattr(app_module, "Users", lambda *a, **kw: fake)
+    # The views read `Users` from the blueprint module, not from `app`.
+    monkeypatch.setattr(users_blueprint, "Users", lambda *a, **kw: fake)
 
     def fake_current_role(username):
-        """The real `_current_role` queries MySQL; read the fake instead.
+        """The real `current_role` queries MySQL; read the fake instead.
 
         It returns the same three keys the views rely on (`user_id`,
         `user_role`, `user_status`), so the authorization paths under test run
@@ -194,7 +197,10 @@ def client(monkeypatch):
             "user_status": row["user_status"],
         }
 
-    monkeypatch.setattr(app_module, "_current_role", fake_current_role)
+    # `current_role` is imported by name into the blueprint and the auth
+    # guards, so every reader must be patched.
+    monkeypatch.setattr(users_blueprint, "current_role", fake_current_role)
+    monkeypatch.setattr(auth_module, "current_role", fake_current_role)
 
     application = app_module.app
     application.config.update(TESTING=True)

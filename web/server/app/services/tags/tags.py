@@ -1,53 +1,296 @@
-import os
+"""Tag queries and the tagging-rule matching rules.
 
-import pymysql
+All SQL for tags lives here; `blueprints/tags.py` only shapes HTTP responses.
+"""
+
+import re
+import unicodedata
+from urllib.parse import unquote
+
+import db
 
 
-class Tags:
-    def __init__(self, port=3306):
-        self.port = port
+def slugify(value):
+    """Client-compatible slug for a tag name or route segment.
 
-    def get_db_connection(self):
+    Mirrors `tagSlug()` in `web/client/app/src/utils/tags.ts`: NFKD-normalize,
+    strip combining marks (`Sécurité` -> `securite`), lower-case, collapse every
+    non-alphanumeric run to one hyphen, and drop leading/trailing hyphens.
+    """
+    decomposed = unicodedata.normalize("NFKD", value)
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    slug = re.sub(r"[^a-z0-9]+", "-", stripped.strip().lower())
+    return slug.strip("-")
 
-        return pymysql.connect(
-            host="127.0.0.1",
-            port=self.port,
-            user="root",
-            password=os.environ["MYSQL_ROOT_PASSWORD"],
-            database="auditsector",
-            cursorclass=pymysql.cursors.DictCursor,
-        )
 
-    def get_tags(self):
-        query = """
-            SELECT *
-            FROM tags;
-            """
+def tag_columns():
+    """Column names present on the `tags` table in the active database.
 
-        try:
-            with self.get_db_connection() as conn, conn.cursor() as cur:
-                cur.execute(query)
-                return cur.fetchall()
-        except pymysql.MySQLError as err:
-            print(f"Unexpected {err=}, {type(err)=}")
-            raise
+    `description` and `boundary` were added after the original schema, so every
+    query selects them only when present. A database that has not run the
+    latest init still works instead of raising `Unknown column`.
+    """
+    conn = db.get_db_connection()
+    with conn:
+        with conn.cursor() as cur:
+            return _tag_columns(cur)
 
-    def get_tag(self, tag_id):
 
-        query = """
-            SELECT a.*, t.name
-            FROM audit_tags at
-            INNER JOIN audit_headers a
-                ON at.audit_id = a.audit_id
-            INNER JOIN tags t
-                ON t.tag_id = at.tag_id
-            WHERE at.tag_id = %s;
-            """
+def _tag_columns(cur):
+    """Cursor-scoped variant of `tag_columns`, for callers already connected."""
+    cur.execute(
+        """
+        SELECT COLUMN_NAME
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tags';
+        """
+    )
+    # Ignore rows without the expected key so a simplified test double, or an
+    # unexpected result shape, degrades to "column absent" rather than a 500.
+    return {row["COLUMN_NAME"] for row in cur.fetchall() if "COLUMN_NAME" in row}
 
-        try:
-            with self.get_db_connection() as conn, conn.cursor() as cur:
-                cur.execute(query, (tag_id,))
-                return cur.fetchall()
-        except pymysql.MySQLError as err:
-            print(f"Unexpected {err=}, {type(err)=}")
-            raise
+
+def list_with_counts():
+    """Every tag with the number of distinct reports carrying it.
+
+    Uses a LEFT JOIN so tags with no reports are still listed (count 0). The
+    tag set is open — users can add tags before any report uses them — so
+    dropping empty tags would hide valid destinations from the `/tags` index.
+
+    Ordered alphabetically by display name. This is a reader-facing index, so
+    name order is what someone scanning the page expects; `tag_id` would show
+    insertion order, which is meaningless to a reader and puts a newly added
+    tag at the end regardless of its name.
+
+    `tag_id` is kept as the tiebreak so two names that collate equal (differing
+    only in case or trailing spaces) still return in a stable order.
+    """
+    conn = db.get_db_connection()
+    with conn:
+        with conn.cursor() as cur:
+            columns = _tag_columns(cur)
+            boundary = ", t.boundary" if "boundary" in columns else ""
+            description = ", t.description" if "description" in columns else ""
+
+            cur.execute(f"""
+                SELECT t.tag_id, t.name, COUNT(DISTINCT at.audit_id) AS report_count
+                       {description}
+                       {boundary}
+                FROM tags AS t
+                LEFT JOIN audit_tags AS at ON at.tag_id = t.tag_id
+                GROUP BY t.tag_id, t.name
+                         {", t.description" if description else ""}
+                         {", t.boundary" if boundary else ""}
+                ORDER BY t.name, t.tag_id;
+            """)
+            rows = cur.fetchall()
+
+    return [
+        {
+            "tag_id": row["tag_id"],
+            "name": row["name"],
+            "report_count": int(row["report_count"] or 0),
+            "description": row.get("description"),
+            "boundary": row.get("boundary"),
+        }
+        for row in rows
+    ]
+
+
+def resolve(segment):
+    """Finds the tag whose name matches a URL segment.
+
+    Accepts either the display name or the client's slug. Matching is done in
+    Python with `slugify` rather than in SQL, so it is byte-for-byte the rule
+    the client applies to route segments (including diacritic stripping, which
+    MySQL's collations do not do consistently).
+
+    The tag set is small and indexed by name, so reading it is cheap.
+
+    Returns the tag row (`tag_id`, `name`, and rule text when available) or
+    `None`.
+    """
+    wanted = slugify(unquote(segment))
+    if not wanted:
+        return None
+
+    conn = db.get_db_connection()
+    with conn:
+        with conn.cursor() as cur:
+            columns = _tag_columns(cur)
+            cur.execute(
+                "SELECT tag_id, name, description FROM tags ORDER BY tag_id;"
+                if "description" in columns
+                else "SELECT tag_id, name, NULL AS description FROM tags ORDER BY tag_id;"
+            )
+            candidates = cur.fetchall()
+
+            match = next(
+                (row for row in candidates if slugify(row["name"]) == wanted),
+                None,
+            )
+            if match is None:
+                return None
+
+            # `boundary` is fetched separately so a database without the column
+            # still resolves tags instead of raising Unknown column.
+            if "boundary" in columns:
+                cur.execute(
+                    "SELECT boundary FROM tags WHERE tag_id = %s;",
+                    (match["tag_id"],),
+                )
+                row = cur.fetchone() or {}
+                match["boundary"] = row.get("boundary")
+            else:
+                match["boundary"] = None
+
+    return match
+
+
+def audit_page(segment, limit, offset):
+    """One page of reports for a tag URL segment.
+
+    Resolving the tag, counting, paging, and collecting the per-row tag names
+    all happen on a single connection so a request sees one consistent snapshot
+    (and does not open three connections for one page).
+
+    Returns `(None, None, None, None)` when no tag matches, otherwise
+    `(tag_row, rows, total_items, tags_by_audit)`.
+    """
+    wanted = slugify(unquote(segment))
+    if not wanted:
+        return None, None, None, None
+
+    conn = db.get_db_connection()
+    with conn:
+        with conn.cursor() as cur:
+            columns = _tag_columns(cur)
+            cur.execute(
+                "SELECT tag_id, name, description FROM tags ORDER BY tag_id;"
+                if "description" in columns
+                else "SELECT tag_id, name, NULL AS description FROM tags ORDER BY tag_id;"
+            )
+            resolved = next(
+                (row for row in cur.fetchall() if slugify(row["name"]) == wanted),
+                None,
+            )
+            if resolved is None:
+                return None, None, None, None
+
+            # `boundary` may be missing on a pre-migration database.
+            if "boundary" in columns:
+                cur.execute(
+                    "SELECT boundary FROM tags WHERE tag_id = %s;",
+                    (resolved["tag_id"],),
+                )
+                resolved["boundary"] = (cur.fetchone() or {}).get("boundary")
+            else:
+                resolved["boundary"] = None
+
+            cur.execute(
+                """
+                SELECT COUNT(*) AS total_items
+                FROM audit_tags
+                WHERE tag_id = %s;
+                """,
+                (resolved["tag_id"],),
+            )
+            total_items = cur.fetchone()["total_items"]
+
+            rows = []
+            if offset < total_items:
+                cur.execute(
+                    """
+                    SELECT a.audit_id, a.title, a.audit_date, a.created_at,
+                           a.risk_level
+                    FROM audit_tags AS at
+                    JOIN audit_headers AS a ON a.audit_id = at.audit_id
+                    WHERE at.tag_id = %s
+                    ORDER BY a.audit_date DESC, a.audit_id DESC
+                    LIMIT %s OFFSET %s;
+                    """,
+                    (resolved["tag_id"], limit, offset),
+                )
+                rows = cur.fetchall()
+
+            tags_by_audit = tags_for_audits(
+                cur, [row["audit_id"] for row in rows]
+            )
+
+    return resolved, rows, total_items, tags_by_audit
+
+
+def audits_for_tag(tag_id, limit, offset):
+    """Reports carrying `tag_id`, newest first, plus the total count.
+
+    Returns `([], total)` when the offset is past the end, so the caller does
+    not need a separate empty-page branch.
+    """
+    conn = db.get_db_connection()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*) AS total_items
+                FROM audit_tags
+                WHERE tag_id = %s;
+                """,
+                (tag_id,),
+            )
+            total_items = cur.fetchone()["total_items"]
+
+            if offset >= total_items:
+                return [], total_items
+
+            cur.execute(
+                """
+                SELECT a.audit_id, a.title, a.audit_date, a.created_at,
+                       a.risk_level
+                FROM audit_tags AS at
+                JOIN audit_headers AS a ON a.audit_id = at.audit_id
+                WHERE at.tag_id = %s
+                ORDER BY a.audit_date DESC, a.audit_id DESC
+                LIMIT %s OFFSET %s;
+                """,
+                (tag_id, limit, offset),
+            )
+            return cur.fetchall(), total_items
+
+
+def tags_for_audits(cur, audit_ids):
+    """Maps each audit id to its tag names, ordered by name.
+
+    Takes an open cursor so the caller can reuse its connection and transaction.
+    Ids with no tags are absent from the mapping; callers default to `[]`.
+    """
+    if not audit_ids:
+        return {}
+
+    placeholders = ", ".join(["%s"] * len(audit_ids))
+    cur.execute(
+        f"""
+        SELECT at.audit_id, t.name
+        FROM audit_tags AS at
+        JOIN tags AS t ON t.tag_id = at.tag_id
+        WHERE at.audit_id IN ({placeholders})
+        ORDER BY t.name;
+        """,
+        tuple(audit_ids),
+    )
+
+    tags_by_audit = {}
+    for row in cur.fetchall():
+        tags_by_audit.setdefault(row["audit_id"], []).append(row["name"])
+
+    return tags_by_audit
+
+
+__all__ = [
+    "audit_page",
+    "audits_for_tag",
+    "list_with_counts",
+    "resolve",
+    "slugify",
+    "tag_columns",
+    "tags_for_audits",
+]

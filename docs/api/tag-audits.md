@@ -2,9 +2,9 @@
 
 ## Status
 
-Proposed contract for the tag detail page at `/tag/<tagname>`. The front-end
-currently renders placeholder data; this documents the endpoint it expects once
-implemented.
+Implemented. Powers the tag detail page (`web/client/app/src/pages/TagPage.tsx`)
+via `web/client/app/src/api/tags.ts`. Tests: `web/server/app/test_tags_api.py`
+and `web/client/app/tests/tags-api.test.mjs`.
 
 ## Purpose
 
@@ -12,6 +12,9 @@ Returns the audit reports that carry a single tag, ordered newest first. Backs
 the `/tag/<tagname>` page, whose slug is produced by lowercasing the tag name
 and replacing non-alphanumeric runs with hyphens (`Information Technology` →
 `information-technology`).
+
+The response also echoes the resolved tag, so the page can render the server's
+display casing instead of guessing it from the URL.
 
 ## Request
 
@@ -22,7 +25,7 @@ and replacing non-alphanumeric runs with hyphens (`Information Technology` →
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `tag` | string | Yes | Tag name or slug. A slug is matched case-insensitively and ignores diacritics, so a hand-typed URL resolves to the same page. |
+| `tag` | string | Yes | Tag name or slug. Resolution applies the same normalization as the client's `tagSlug()`: NFKD-normalize, strip combining marks (`Sécurité` → `securite`), lower-case, collapse non-alphanumeric runs to one hyphen. A hand-typed URL therefore resolves to the same page. |
 
 ### Query Parameters
 
@@ -35,8 +38,9 @@ and replacing non-alphanumeric runs with hyphens (`Information Technology` →
 
 Results are ordered by:
 
-1. `report_date` descending, so the newest publication appears first.
-2. `audit_id` descending when two reports share a publication date.
+1. `audit_date` descending, so the newest report appears first.
+2. `audit_id` descending when two reports share a date. With UUID identifiers
+   this is a deterministic tiebreak, not insertion order.
 
 ## Successful Response
 
@@ -46,15 +50,20 @@ Results are ordered by:
 {
   "data": [
     {
-      "audit_id": 42,
+      "audit_id": "00000000-0000-4000-8000-000000000042",
       "title": "FY 2026 Procurement Audit",
-      "auditing_office": "Office of Internal Audit",
-      "report_date": "2026-09-15",
-      "scanned_at": "2026-09-30T14:25:00Z",
-      "source_url": "https://example.gov/audits/procurement-2026.pdf",
+      "audit_date": "2026-09-15T00:00:00",
+      "created_at": "2026-09-30T14:25:00",
+      "risk_level": "MEDIUM",
       "tags": ["Procurement", "Regulatory Compliance"]
     }
   ],
+  "tag": {
+    "tag_id": 10,
+    "name": "Regulatory Compliance",
+    "description": "Specific laws, regulations or externally mandated standards are an explicit objective or substantial testing focus.",
+    "boundary": "Internal policy or contract testing alone does not qualify. Label scope, including compliant findings; do not infer illegality."
+  },
   "pagination": {
     "page": 1,
     "limit": 20,
@@ -64,12 +73,23 @@ Results are ordered by:
 }
 ```
 
-`tags` carries every tag on each report, so rows can link to the report's other
-tags without a second request.
+Each entry in `data` is the same row shape `GET /audits/recent` returns, so both
+lists share one table implementation and one validator
+(`web/client/app/src/api/auditRow.ts`).
 
-`risk_level` is one of `INFO`, `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`
-(`audit_headers.risk_level`), or `null` for a report that has not been
-classified yet.
+| Field | Type | Meaning |
+|---|---|---|
+| `audit_id` | string or legacy number | Opaque report identifier. |
+| `title` | string | Report title. |
+| `audit_date` | string | Stored audit date and time, `YYYY-MM-DDTHH:MM:SS`. |
+| `created_at` | string | Record insertion time, same format. |
+| `risk_level` | string or `null` | `INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, or `null` when unclassified. |
+| `tags` | array of strings | Every tag on the report, ordered by name, so tags are navigable without a second request. |
+
+`tag` echoes the resolved tag: `tag_id`, display `name`, and the tagging rule
+(`description` = inclusion, `boundary` = exclusion). The rule travels with the
+response so the page can explain what the tag means above the list it selected,
+without a second request. Either field may be `null`.
 
 ## Empty Response
 
@@ -79,6 +99,12 @@ array. This is distinct from an unknown tag, which returns `404`.
 ```json
 {
   "data": [],
+  "tag": {
+    "tag_id": 1,
+    "name": "Inventory",
+    "description": "Stock, consumable supplies and non-capital small equipment: counts, custody, distribution and safeguarding.",
+    "boundary": "Includes small durable items below the fixed-asset threshold; exclude capital-asset lifecycle planning."
+  },
   "pagination": {
     "page": 1,
     "limit": 20,
@@ -87,6 +113,9 @@ array. This is distinct from an unknown tag, which returns `404`.
   }
 }
 ```
+
+A page past the end behaves the same way: `200` with empty `data` and the real
+totals, so the client can step back to the last populated page.
 
 ## Error Responses
 

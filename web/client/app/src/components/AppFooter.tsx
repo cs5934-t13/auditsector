@@ -14,12 +14,25 @@ import {
 } from '../content/layout';
 import { navFor } from '../content/navigation';
 import { useAuth } from '../auth/AuthContext';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { richTextToPlainText } from '../utils/richtext';
+import RichText from './RichText';
 import {
   BRAND_FONT,
   BRAND_FONT_WEIGHT,
   BRAND_LETTER_SPACING,
   FOOTER_LINK_SX,
 } from '../theme';
+
+/**
+ * Matches a bare email address.
+ *
+ * The Contact value is rich text, so an address normally arrives wrapped in a
+ * `mailto:` link. An administrator who types only the address would otherwise
+ * get unlinked text, so a value whose entire content is an address is still
+ * rendered as a link.
+ */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Application footer with a brand block, navigation, and contact information.
@@ -32,7 +45,10 @@ import {
 export default function AppFooter() {
   const year = new Date().getFullYear();
   const { isAuthenticated } = useAuth();
+  const { settings } = useAppSettings();
   const navItems = navFor(isAuthenticated);
+  const contactText = richTextToPlainText(settings.contact);
+  const contactEmail = EMAIL_PATTERN.test(contactText) ? contactText : null;
 
   return (
     <Box
@@ -107,14 +123,13 @@ export default function AppFooter() {
             </Typography>
             <Stack spacing={1} component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
               <li>
-                <Link href="mailto:team@auditsector.example" sx={FOOTER_LINK_SX}>
-                  team@auditsector.example
-                </Link>
-              </li>
-              <li>
-                <Link href="https://github.com/cs5934-t13/auditsector/" sx={FOOTER_LINK_SX}>
-                  Project repository
-                </Link>
+                {contactEmail ? (
+                  <Link href={`mailto:${contactEmail}`} sx={FOOTER_LINK_SX}>
+                    {contactEmail}
+                  </Link>
+                ) : (
+                  <RichText value={settings.contact} variant="body2" />
+                )}
               </li>
             </Stack>
           </Box>

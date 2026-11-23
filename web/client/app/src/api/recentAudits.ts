@@ -1,13 +1,16 @@
+import {
+  expectedRowCount,
+  isAuditRow,
+  isNonnegativeInteger,
+  isPagination,
+  isRecord,
+  type Pagination,
+} from './auditRow.ts';
 import type { RecentAuditRecord } from '../content/recentReports.ts';
 
 export interface RecentAuditsResponse {
   data: RecentAuditRecord[];
-  pagination: {
-    page: number;
-    limit: number;
-    total_items: number;
-    total_pages: number;
-  };
+  pagination: Pagination;
 }
 
 export class RecentAuditsApiError extends Error {
@@ -28,50 +31,21 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isNonnegativeInteger(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
-}
-
-function isStoredDateTime(value: unknown): value is string {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)) {
+function isResponse(
+  value: unknown,
+  page: number,
+  limit: number,
+): value is RecentAuditsResponse {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.data) ||
+    !isPagination(value.pagination, page, limit) ||
+    !value.data.every(isAuditRow)
+  ) {
     return false;
   }
-  // Check the calendar value without converting the string used for display.
-  const date = new Date(`${value}Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 19) === value;
-}
 
-function isAudit(value: unknown): value is RecentAuditRecord {
-  if (!isRecord(value)) return false;
-  const validId = typeof value.audit_id === 'string'
-    ? value.audit_id.trim().length > 0
-    : isNonnegativeInteger(value.audit_id) && value.audit_id > 0;
-  return validId
-    && typeof value.title === 'string'
-    && isStoredDateTime(value.audit_date)
-    && isStoredDateTime(value.created_at);
-}
-
-function isResponse(value: unknown, page: number, limit: number): value is RecentAuditsResponse {
-  if (!isRecord(value) || !Array.isArray(value.data) || !isRecord(value.pagination)) {
-    return false;
-  }
-  const pagination = value.pagination;
-  if (pagination.page !== page || pagination.limit !== limit
-    || !isNonnegativeInteger(pagination.total_items)
-    || !isNonnegativeInteger(pagination.total_pages)
-    || pagination.total_pages !== Math.ceil(pagination.total_items / limit)
-    || !value.data.every(isAudit)) {
-    return false;
-  }
-  const expectedRows = Math.max(0, Math.min(limit, pagination.total_items - (page - 1) * limit));
-  // Grid row keys must be unique, including mixed legacy/string identifiers.
-  const ids = value.data.map((row: RecentAuditRecord) => String(row.audit_id));
-  return value.data.length === expectedRows && new Set(ids).size === ids.length;
+  return expectedRowCount(value.pagination, value.data as RecentAuditRecord[]);
 }
 
 function requestFailure(timeout: AbortSignal, signal: AbortSignal): RecentAuditsApiError {

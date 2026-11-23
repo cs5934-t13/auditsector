@@ -6,6 +6,9 @@ WORKDIR /app
 COPY ./app/requirements.txt .
 RUN pip install --no-cache-dir --requirement requirements.txt
 
+# Both go in /app: db_init.py defaults to `<its own directory>/sql`, so the SQL
+# lives beside the script. Keep this in step with db_init.py — a mismatch here
+# previously made every initialization run fail with FileNotFoundError.
 COPY scripts/db_init.py .
 COPY scripts/*.sql ./sql/
 
