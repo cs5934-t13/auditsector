@@ -1,3 +1,4 @@
+"""Run a downloaded audit PDF through extraction, summarization, and tagging."""
 
 from pathlib import Path
 
@@ -6,12 +7,13 @@ from .summarize import generate_summary
 from .tag import generate_tags
 
 
-def process_audit(pdf_path):
+def process_audit(pdf_path, audit_url=None):
     """
     Process an audit PDF through the AI pipeline.
 
     Returns extracted metadata, an AI-generated summary,
-    and predefined classification tags.
+    and predefined classification tags. `audit_url` is the report's source URL;
+    when given, it supplies the filename used as the last-resort title.
     """
 
     pdf_path = Path(pdf_path)
@@ -22,7 +24,7 @@ def process_audit(pdf_path):
         )
 
     # Step 1: Extract text from the PDF
-    extraction = extract_pdf(pdf_path)
+    extraction = extract_pdf(pdf_path, audit_url=audit_url)
 
     # Step 2: Combine text from all pages
     audit_text = "\n\n".join(
@@ -43,6 +45,7 @@ def process_audit(pdf_path):
 
     return {
         "file_name": extraction["file_name"],
+        "title": extraction["title"],
         "page_count": extraction["page_count"],
         "summary": summary,
         "tags": tagging_result["tags"]

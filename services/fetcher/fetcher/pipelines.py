@@ -37,14 +37,16 @@ class SummarizeTagPipeline:
                 )
                 if cur.fetchone():
                     continue
-            processed = process_audit(store / file["path"])
+            processed = process_audit(store / file["path"], audit_url=file["url"])
             audit = Audit(
                 schedule_id=spider.schedule_id,
                 muni=spider.name,
                 # Link straight to the PDF so the report opens from the UI.
                 audit_url=file["url"],
             )
-            audit.title = processed["file_name"]
+            # The stored download path is a content hash, so the readable name
+            # comes from the title chain rather than the filename on disk.
+            audit.title = processed["title"]
             audit.summary = processed["summary"]
             audit.run_status = "COMPLETED"
             with connect_db() as conn, conn.cursor() as cur:
