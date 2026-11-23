@@ -1,9 +1,10 @@
 # Scheduler (AW-98)
 
 The existing services container runs `python -m services.scheduler` through uv.
-It checks saved sources every 60 seconds, sequentially, and launches the existing
-Scrapy Portland or Seattle spider in a child process. Other collections report an
-error until a suitable spider is added; this is not a generic website crawler.
+It checks saved sources every 60 seconds, sequentially, and launches the matching
+Scrapy spider in a child process. Supported collection pages are listed in
+`services/sample_pages.csv`; each has a site-specific spider and download directory.
+Unsupported collections report an error; this is not a generic website crawler.
 
 - New sources with no next-run time run on the next pass. ARCHIVE never runs.
 - HOURLY/DAILY/WEEKLY preserve their slots; missed slots produce one scan.

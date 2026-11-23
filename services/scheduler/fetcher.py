@@ -1,4 +1,3 @@
-"""Launch existing, explicitly supported Scrapy spiders in separate processes."""
 
 import subprocess
 import sys
@@ -31,6 +30,41 @@ def spider_for_url(source_url):
         and url.path.rstrip("/") == "/city-auditor/reports"
     ):
         return "seattle_wa"
+    if host in ("www.portland.gov", "portland.gov"):
+        if url.path.rstrip("/") == (
+            "/auditor/audit-services/about-us/audit-reports-online"
+        ):
+            return "portland_audit_reports"
+        if url.path.rstrip("/") == "/auditor/audit-services":
+            return "portland_audit_services"
+    if host in ("www.cityoftulsa.org", "cityoftulsa.org") and (
+        url.path.rstrip("/") == "/government/internal-audit-reports"
+    ):
+        return "tulsa_ok"
+    if host == "clark.wa.gov" and url.path.rstrip("/") == "/auditor/auditor-documents":
+        return "clark_wa"
+    if host == "denvergov.org" and url.path.rstrip("/").endswith(
+        "/Auditors-Office/Audit-Services/Audit-Reports"
+    ):
+        return "denver_co"
+    if host == "kingcounty.gov" and url.path.rstrip("/").endswith(
+        "/auditors-office/reports-papers"
+    ):
+        return "king_county_wa"
+    if host == "www.azauditor.gov" and url.path.rstrip("/") == "/counties/maricopa-county":
+        return "maricopa_az"
+    if host == "www.cityofsacramento.gov" and url.path.rstrip("/") == "/auditor":
+        return "sacramento_ca"
+    if host == "www.sandiego.gov" and url.path.rstrip("/") == "/auditor/reports":
+        return "san_diego_ca"
+    if host == "www.sf.gov" and url.path.rstrip("/") == "/information--city-services-auditor":
+        return "san_francisco_ca"
+    if host == "www.sanjoseca.gov" and url.path.rstrip("/") == (
+        "/your-government/appointees/city-auditor/audit-reports-4828"
+    ):
+        return "san_jose_ca"
+    if host == "auditor.virginiabeach.gov" and url.path.rstrip("/") == "":
+        return "virginia_beach_va"
     if host == "efiles.portlandoregon.gov" and (
         url.path == "/record" or url.path.startswith("/record/")
     ):
