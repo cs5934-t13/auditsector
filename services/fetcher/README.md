@@ -27,16 +27,34 @@ cd services/fetcher
 uv run python -m unittest discover -s tests -v
 ```
 
+## Publication dates
+
+`audit_headers.audit_date` holds the report's publication date, while
+`created_at` holds the crawl time. The fetcher used to write `UTC_TIMESTAMP()`
+to both, so every report looked published on the day it was scanned.
+
+`fetcher/ai/publish_date.py` derives the real value:
+
+1. A date on page 1, in any of `April 16, 2020`, `16 April 2020`,
+   `2020-04-16`, `MARCH 2023`, or a month wrapped onto its own line followed by
+   the year. A full date with a day is preferred over month-and-year.
+2. The PDF's `CreationDate` metadata, which is file creation rather than
+   publication and therefore only a fallback.
+3. The crawl time, when the PDF states no date, so the `NOT NULL` column stays
+   populated.
+
 ## Backfilling existing titles
 
 Rows written before the title chain existed hold the download hash in
-`audit_headers.title`. `scripts/backfill_titles.py` re-derives them:
+`audit_headers.title`, and rows written before the date fix hold the crawl time
+in `audit_headers.audit_date`. `scripts/backfill_titles.py` repairs both:
+titles that fail the usability check, and dates that still equal `created_at`.
 
 ```sh
 # preview, without writing
 uv run python scripts/backfill_titles.py --dry-run
 
-# only rows whose title is unusable
+# repair unusable titles and crawl-time dates
 uv run python scripts/backfill_titles.py
 
 # re-derive every row, e.g. after changing the rules

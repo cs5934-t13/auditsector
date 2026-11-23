@@ -31,6 +31,7 @@ class Audit:
             "title": self.title,
             "muni": self.muni,
             "audit_url": self.audit_url,
+            "audit_date": self.audit_date,
             "risk_level": self.risk_level,
             "run_status": self.run_status,
             "summary": self.summary,

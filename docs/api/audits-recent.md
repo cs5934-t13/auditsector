@@ -64,7 +64,7 @@ Each item in `data` contains:
 |---|---|---|---|
 | `audit_id` | string or legacy number | `audit_headers.audit_id` | Opaque record identifier. Current initialization SQL uses a UUID string; older, unmigrated databases return an integer. |
 | `title` | string | `audit_headers.title` | Stored audit title. |
-| `audit_date` | string | `audit_headers.audit_date` | Stored audit date and time. This contract does not establish that it is the publication date. |
+| `audit_date` | string | `audit_headers.audit_date` | Publication date of the report, read from the PDF. |
 | `created_at` | string | `audit_headers.created_at` | Date and time the audit record was inserted. |
 | `risk_level` | string or `null` | `audit_headers.risk_level` | `INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, or `null` when unclassified. |
 | `tags` | array of strings | `audit_tags` joined to `tags` | Tag names on the report, ordered by name. Empty for an untagged report. |
@@ -76,6 +76,12 @@ with one additional query for the whole page, not one query per report.
 Date and time values use `YYYY-MM-DDTHH:MM:SS`.
 
 Both columns are MySQL `DATETIME` values without timezone information. Responses preserve the stored values without adding a UTC suffix or timezone offset.
+
+`audit_date` is the report's publication date, derived from the PDF, while
+`created_at` is when the fetcher inserted the row. They usually differ: a report
+published in 2020 and scanned in 2026 has a 2020 `audit_date` and a 2026
+`created_at`. Sorting is by `created_at`, so a newly scanned older report still
+appears at the top of the list.
 
 ## Pagination
 

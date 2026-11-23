@@ -7,13 +7,15 @@ from .summarize import generate_summary
 from .tag import generate_tags
 
 
-def process_audit(pdf_path, audit_url=None):
+def process_audit(pdf_path, audit_url=None, fallback_date=None):
     """
     Process an audit PDF through the AI pipeline.
 
-    Returns extracted metadata, an AI-generated summary,
-    and predefined classification tags. `audit_url` is the report's source URL;
-    when given, it supplies the filename used as the last-resort title.
+    Returns extracted metadata, the report's publication date, an AI-generated
+    summary, and predefined classification tags. `audit_url` is the report's
+    source URL; when given, it supplies the filename used as the last-resort
+    title. `fallback_date` is stored as the publication date when the PDF does
+    not state one.
     """
 
     pdf_path = Path(pdf_path)
@@ -24,7 +26,9 @@ def process_audit(pdf_path, audit_url=None):
         )
 
     # Step 1: Extract text from the PDF
-    extraction = extract_pdf(pdf_path, audit_url=audit_url)
+    extraction = extract_pdf(
+        pdf_path, audit_url=audit_url, fallback_date=fallback_date
+    )
 
     # Step 2: Combine text from all pages
     audit_text = "\n\n".join(
@@ -46,6 +50,7 @@ def process_audit(pdf_path, audit_url=None):
     return {
         "file_name": extraction["file_name"],
         "title": extraction["title"],
+        "publish_date": extraction["publish_date"],
         "page_count": extraction["page_count"],
         "summary": summary,
         "tags": tagging_result["tags"]

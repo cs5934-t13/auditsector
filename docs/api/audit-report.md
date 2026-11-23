@@ -61,7 +61,7 @@ cookie established by a successful login. An unauthenticated request returns
 | `title` | string | `audit_headers.title` | Report title. |
 | `municipality` | string | `audit_headers.muni` | Reporting municipality; the wire name differs from the column name. |
 | `audit_url` | string | `audit_headers.audit_url` | Link to the original audit document. |
-| `audit_date` | string | `audit_headers.audit_date` | Stored audit date and time. |
+| `audit_date` | string | `audit_headers.audit_date` | Publication date of the report, read from the PDF. |
 | `risk_level` | string or `null` | `audit_headers.risk_level` | One of `INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`, or `null` when the report has not been classified. |
 | `run_status` | string or `null` | `audit_headers.run_status` | One of `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`. |
 | `summary` | string or `null` | `audit_headers.summary` | AI-generated summary; `null` until the scan produces one. |
@@ -73,6 +73,16 @@ cookie established by a successful login. An unauthenticated request returns
 `audit_date` and `created_at` use `YYYY-MM-DDTHH:MM:SS`. Both columns are MySQL
 `DATETIME` values without timezone information, and the response preserves the
 stored values without adding a UTC suffix or offset.
+
+`audit_date` is the report's **publication date**, not the crawl time. The
+fetcher fills it from the page-1 masthead (for example `April 16, 2020` or
+`MARCH 2023`), then from the PDF's `CreationDate` metadata. A month-and-year
+masthead yields the first of that month. Only when the PDF states no date at all
+is the crawl time stored, so a report published without a date is
+indistinguishable from the old behaviour for that row.
+
+`created_at` is when the fetcher inserted the row. The two differ whenever the
+report was published before it was scanned, which is the normal case.
 
 ## Error Responses
 
