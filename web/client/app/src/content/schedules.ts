@@ -5,7 +5,9 @@
  * one place, matching `content/riskLevels.ts` and `content/frequencies.ts`.
  */
 import type { ScanStatus } from '../api/schedules'
-import { formatStoredDateTimeShort } from '../utils/formatDate'
+// Explicit extension: Node's ESM resolver needs it, and the tests load this
+// module directly. Vite resolves both forms.
+import { formatStoredDateTimeShort } from '../utils/formatDate.ts'
 
 export interface ScanStatusMeta {
   label: string
@@ -77,7 +79,19 @@ export function runProgressLabel(schedule: {
       ? `Finding reports… ${downloaded} downloaded`
       : 'Finding reports…'
   }
-  if (processed < total && downloaded < total) {
+
+  // Nothing has landed yet, so the download count is not yet meaningful either
+  // — a large archive spends a long time here while `FilesPipeline` works
+  // through the batch. Claiming "0 of 360" reads as stuck; the phase is real
+  // but its size is not yet observable.
+  if (downloaded === 0 && processed === 0) {
+    return 'Downloading reports…'
+  }
+
+  // Downloads lead processing, because every file is fetched before the first
+  // one is processed. Reporting a percentage from `processed` while downloading
+  // is still underway would show a bar that sits at 0 for most of the run.
+  if (downloaded < total) {
     return `Downloading reports… ${downloaded} of ${total}`
   }
   return `Processing reports… ${processed} of ${total}`
@@ -87,8 +101,14 @@ export function runProgressLabel(schedule: {
 export function runProgressPercent(schedule: {
   is_running: boolean
   run_total: number | null
+  run_downloaded: number
   run_processed: number
 }): number | null {
   if (!schedule.is_running || !schedule.run_total) return null
-  return Math.min(100, Math.round((schedule.run_processed / schedule.run_total) * 100))
+
+  // Downloads lead processing, so the bar measures whichever phase is further
+  // along. Using `processed` alone would hold the bar at 0 for the whole
+  // download, which is most of a large run.
+  const done = Math.max(schedule.run_downloaded, schedule.run_processed)
+  return Math.min(100, Math.round((done / schedule.run_total) * 100))
 }

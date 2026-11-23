@@ -33,7 +33,9 @@ def _record_downloads(spider, files):
                 ON DUPLICATE KEY UPDATE status=status""",
                 [(spider.name, file["url"]) for file in files],
             )
-        record_download(spider.schedule_id, len(files))
+        # No `record_download` here: `PdfPipeline.file_downloaded` already counted
+        # each file as it landed. This call only writes the receipts that make
+        # the next run resumable.
     except Exception:  # pylint: disable=broad-except
         # Progress is a convenience; a receipt failure must not fail the crawl.
         logger.warning("Could not record download receipts", exc_info=True)
@@ -74,7 +76,32 @@ class FetcherPipeline:
 
 
 class PdfPipeline(FilesPipeline):
-    """Retain Scrapy's URL-hash filenames, which also work outside Portland."""
+    """Retain Scrapy's URL-hash filenames, which also work outside Portland.
+
+    Also reports download progress. `FilesPipeline` finishes the whole batch
+    before any item reaches `SummarizeTagPipeline`, so counting there left
+    `run_downloaded` at 0 for the entire download — hours on a large archive.
+    Counting here, one file at a time, is what makes the progress bar move.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._downloaded = 0
+        self._schedule_id = 0
+
+    def file_downloaded(self, response, request, info, *, item=None):
+        """Count each file as it lands, then delegate the storage decision."""
+        path = super().file_downloaded(response, request, info, item=item)
+        self._schedule_id = getattr(info.spider, "schedule_id", 0)
+        self._downloaded += 1
+        # Best-effort: a progress write must never fail a download. `progress`
+        # swallows database errors, but this guard also covers a bug in the
+        # counter itself — losing a tick is better than losing the file.
+        try:
+            record_download(self._schedule_id, self._downloaded)
+        except Exception:  # pylint: disable=broad-except
+            logger.warning("Could not record download progress", exc_info=True)
+        return path
 
 
 class SummarizeTagPipeline:

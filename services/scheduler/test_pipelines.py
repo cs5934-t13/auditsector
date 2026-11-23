@@ -12,7 +12,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from fetcher.pipelines import SummarizeTagPipeline
+from scrapy.pipelines.files import FilesPipeline
+
+from fetcher.pipelines import PdfPipeline, SummarizeTagPipeline
 
 
 def _spider(name="test_spider", schedule_id=7):
@@ -223,6 +225,71 @@ class ResumeTests(unittest.TestCase):
             if "INSERT INTO fetches" in sql and "PROCESSED" in sql
         ]
         self.assertEqual(len(receipt_calls), 1)
+
+
+class DownloadCountingTests(unittest.TestCase):
+    """`PdfPipeline` counts each file as it lands.
+
+    The batch-level counter it replaced only ran after `FilesPipeline` finished
+    every download, so a 360-file archive showed "0 of 360" for an hour.
+    """
+
+    def _pipeline(self):
+        pipeline = PdfPipeline.__new__(PdfPipeline)
+        pipeline._downloaded = 0
+        pipeline._schedule_id = 0
+        return pipeline
+
+    def _info(self, schedule_id=6):
+        return SimpleNamespace(spider=SimpleNamespace(schedule_id=schedule_id))
+
+    def test_counts_each_completed_download(self):
+        pipeline = self._pipeline()
+
+        # Patch the *parent* implementation, not the override under test.
+        with patch.object(FilesPipeline, "file_downloaded",
+                          return_value="full/abc"), \
+                patch("fetcher.pipelines.record_download") as record:
+            for expected in (1, 2, 3):
+                pipeline.file_downloaded(None, None, self._info())
+                self.assertEqual(record.call_args.args, (6, expected))
+
+        self.assertEqual(pipeline._downloaded, 3)
+
+    def test_returns_the_stored_path(self):
+        """Counting must not change what `FilesPipeline` stores."""
+        pipeline = self._pipeline()
+
+        with patch.object(FilesPipeline, "file_downloaded", return_value="full/abc"), \
+                patch("fetcher.pipelines.record_download"):
+            path = pipeline.file_downloaded(None, None, self._info())
+
+        self.assertEqual(path, "full/abc")
+
+    def test_a_progress_failure_does_not_break_the_download(self):
+        pipeline = self._pipeline()
+
+        with patch.object(FilesPipeline, "file_downloaded", return_value="full/abc"), \
+                patch("fetcher.pipelines.record_download",
+                      side_effect=RuntimeError("db down")):
+            path = pipeline.file_downloaded(None, None, self._info())
+
+        self.assertEqual(path, "full/abc")
+
+    def test_the_batch_receipts_no_longer_count_downloads(self):
+        """Otherwise every run would double-count: per file *and* per batch."""
+        spider = _spider()
+        item = {"file_urls": ["https://x.test/a.pdf"], "files": [_file("https://x.test/a.pdf")]}
+        conn, _ = _connection()
+        pipeline = _pipeline()
+
+        with patch("fetcher.pipelines.connect_db", return_value=conn), \
+                patch("fetcher.pipelines.process_audit", return_value=_processed()), \
+                patch("fetcher.pipelines.record_processed"), \
+                patch("fetcher.pipelines.record_download") as record:
+            pipeline.process_item(item, spider)
+
+        record.assert_not_called()
 
 
 if __name__ == "__main__":
